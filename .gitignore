@@ -40,3 +40,6 @@ Thumbs.db
 *.pem
 /captures/
 /google-services.json
+# Local Pi runtime state
+.atl/
+.pi/
