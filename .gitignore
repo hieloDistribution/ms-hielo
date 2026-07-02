@@ -1,0 +1,42 @@
+# Built metadata files
+.gradle
+.idea
+*.iml
+*.ipr
+*.iws
+out/
+build/
+target/
+bin/
+
+# Application files & secrets
+local.properties
+.env
+.env.*
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Maven / Gradle wrappers (optional, but sometimes kept; let's keep wrappers if committed, ignore temporary wrapper files)
+.gradle/
+.mvn/
+
+# Compilation and packaging outputs
+*.class
+*.war
+*.ear
+*.jar
+*.zip
+*.tar.gz
+*.rar
+
+# Crashlytics / Keystore / Key files
+*.keystore
+*.jks
+*.p12
+*.key
+*.pem
+/captures/
+/google-services.json
