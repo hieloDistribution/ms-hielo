@@ -42,7 +42,7 @@ sdd:
   enabled: true
   artifact_store: openspec
   changes_root: openspec/changes/
-  current_change: auth-foundation
+  current_change: null  # archived 2026-07-03 -- see openspec/changes/archive/2026-07-03-auth-foundation/
   working_branch: feature/auth-foundation
   execution_mode: interactive
   chained_pr_strategy: auto-forecast
