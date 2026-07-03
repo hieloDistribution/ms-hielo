@@ -10,20 +10,20 @@ El sistema sigue una arquitectura distribuida orientada a microservicios en el b
 
 ```mermaid
 graph TD
-    subgraph Client ["Cliente Flutter (Dispositivo)"]
+    subgraph Sub_Client ["Cliente Flutter (Dispositivo)"]
         UI[Pantalla de Pedidos] -->|Registrar Acciones| SQLite[(SQLite + sqflite)]
         SQLite -->|Transaccional: Pedidos + Outbox| Outbox[(Tabla outbox)]
         SyncEngine[Sync Engine] -->|1. Lee en orden cronológico| Outbox
         SyncEngine -->|2. Valida Internet| Net{¿Tiene Internet?}
     end
 
-    subgraph SyncService ["Backend - sync-service (Puerto 8080)"]
+    subgraph Sub_SyncService ["Backend - sync-service (Puerto 8080)"]
         Net -->|POST /api/v1/sync con Bearer JWT| SyncController[SyncController]
         SyncController -->|Valida Idempotencia| PostgreSQL_Sync[(sync_db - Processed Requests)]
         SyncController -->|Valida JWT y Extrae Claims| JwtServiceSync[JwtService]
     end
 
-    subgraph OrderService ["Backend - order-service (Puerto 8081)"]
+    subgraph Sub_OrderService ["Backend - order-service (Puerto 8081)"]
         SyncController -->|POST /api/v1/orders con Bearer JWT| OrderController[OrderController]
         OrderController -->|Filtro de Validacion JWT| JwtFilter[JwtAuthenticationFilter]
         OrderController -->|Procesa negocio y stock| OrderService[OrderService]
