@@ -10,14 +10,14 @@ El flujo de datos sigue el **Patrón Outbox Transaccional** para garantizar la e
 
 ```mermaid
 graph TD
-    subgraph Dispositivo Android (Vendedor)
+    subgraph Sub_Device ["Dispositivo Android (Vendedor)"]
         UI[Pantalla de Pedidos] -->|Crear/Modificar| Room[(Base de Datos Room - SQLite)]
         Room -->|Atómico: Orden + Outbox| Outbox[(Tabla Outbox)]
         WorkManager[WorkManager / CoroutineWorker] -->|Lee en orden cronológico| Outbox
         WorkManager -->|Verifica Conexión TCP Port 53| Internet{¿Hay Internet?}
     end
 
-    subgraph Backend (Microservicios Java)
+    subgraph Sub_Backend ["Backend (Microservicios Java)"]
         Internet -->|HTTP POST /api/v1/sync con Bearer JWT| MS1[Microservicio 1: Servicio de Sincronización e Idempotencia]
         MS1 -->|1. Verifica UUID| DBIdemp[(PostgreSQL - Tabla Idempotencia)]
         MS1 -->|2. Envía Pedido HTTP POST con JWT| MS2[Microservicio 2: Servicio de Pedidos y Base de Datos Real]
