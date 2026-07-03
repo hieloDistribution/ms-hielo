@@ -58,15 +58,15 @@ El sistema implementa un esquema de autenticación centralizada y autorización 
     *   Expone `/api/v1/auth/refresh` para rotar tokens mediante el patrón *Single-Use Refresh Tokens*.
 *   **`order-service` (Recurso Protegido)**:
     *   No tiene acceso directo a la base de datos de usuarios. Valida los tokens de acceso localmente utilizando el secreto compartido `JWT_SECRET`.
-    *   Intercepta las peticiones en [JwtAuthenticationFilter](file:///d:/programacion/ice/order-service/src/main/java/com/sales/order/auth/security/JwtAuthenticationFilter.java), valida la firma, emisor, audiencia y tiempo de expiración.
-    *   Si el token es válido, puebla el contexto de seguridad (`SecurityContext`) y expone los detalles del vendedor a través de un bean de alcance de petición (`@RequestScope`) llamado [VendorContext](file:///d:/programacion/ice/order-service/src/main/java/com/sales/order/auth/security/VendorContext.java).
+    *   Intercepta las peticiones en [JwtAuthenticationFilter](order-service/src/main/java/com/sales/order/auth/security/JwtAuthenticationFilter.java), valida la firma, emisor, audiencia y tiempo de expiración.
+    *   Si el token es válido, puebla el contexto de seguridad (`SecurityContext`) y expone los detalles del vendedor a través de un bean de alcance de petición (`@RequestScope`) llamado [VendorContext](order-service/src/main/java/com/sales/order/auth/security/VendorContext.java).
 
 ### B. Rotación y Detección de Robo de Tokens de Refresco (Theft Detection)
-Para evitar el uso malintencionado de tokens de refresco robados, se implementa la técnica de **detección por reutilización (replay)** en [RefreshRotationService.java](file:///d:/programacion/ice/sync-service/src/main/java/com/sales/sync/auth/service/RefreshRotationService.java):
+Para evitar el uso malintencionado de tokens de refresco robados, se implementa la técnica de **detección por reutilización (replay)** en [RefreshRotationService.java](sync-service/src/main/java/com/sales/sync/auth/service/RefreshRotationService.java):
 *   Cada inicio de sesión genera una **Familia de Tokens** (`token_family`).
 *   Cuando un cliente pide un nuevo token usando un `refresh_token`, el servicio:
     1. Inactiva/marca como revocado (`revoked = true`) el token presentado.
-    2. Emite un nuevo par de `access_token` y `refresh_token` (este último pertenece a la misma familia).
+    2. Emite un nuevo par de `access_token` and `refresh_token` (este último pertenece a la misma familia).
 *   **Detección de Replay**: Si un atacante roba un `refresh_token` que ya ha sido usado (o si el cliente legítimo lo vuelve a usar por error de red), el servidor detecta que el registro ya está marcado como revocado.
 *   **Respuesta de Pánico**: Ante una reutilización, el sistema asume que el token fue interceptado. **Revoca inmediatamente todos los tokens activos pertenecientes a esa misma familia** (quemando la familia), forzando a que todas las sesiones de ese flujo deban iniciar sesión de nuevo.
 

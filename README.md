@@ -3,7 +3,7 @@
 Este es el repositorio principal para el sistema de registro y sincronización de pedidos offline-first para la distribución de hielo. El sistema está diseñado para que los vendedores registren pedidos en la calle (incluso sin conectividad celular) y los sincronicen automáticamente al recuperar internet.
 
 El sistema consta de:
-1. **Cliente Móvil (Frontend)**: Desarrollado en Flutter, ubicado en `D:\programacion\UI-HieloPedido` (repositorio independiente).
+1. **Cliente Móvil (Frontend)**: Desarrollado en Flutter, ubicado en el repositorio frontend independiente (`UI-HieloPedido`).
 2. **Servicio de Sincronización e Idempotencia (`sync-service`)**: Microservicio Spring Boot en Java 21, encargado de la puerta de entrada, la validación de tokens JWT, control de idempotencia y rotación de tokens de refresco.
 3. **Servicio de Pedidos y Catálogo (`order-service`)**: Microservicio Spring Boot en Java 21 que administra la base de datos transaccional central de pedidos, validación de stock y catálogo de productos.
 4. **Base de Datos**: PostgreSQL 15 ejecutándose a través de Docker.
@@ -34,7 +34,7 @@ ice/
 Sigue estos pasos en orden para levantar todo el ecosistema de desarrollo local:
 
 ### 1. Iniciar la Base de Datos (PostgreSQL)
-Asegúrate de tener Docker instalado y corriendo. En la raíz de este proyecto (`d:\programacion\ice`), ejecuta:
+Asegúrate de tener Docker instalado y corriendo. En la raíz de este proyecto, ejecuta:
 ```bash
 docker-compose up -d
 ```
@@ -65,12 +65,12 @@ Abre dos terminales diferentes e inicia cada servicio mediante Maven Wrapper:
   ```
 
 ### 4. Configurar y Correr el Cliente Flutter
-Abre el proyecto `D:\programacion\UI-HieloPedido` en **Android Studio**.
+Abre el proyecto `UI-HieloPedido` (que debería estar clonado como carpeta hermana o en la ubicación que prefieras) en **Android Studio**.
 1. Instala las dependencias:
    ```bash
    flutter pub get
    ```
-2. Configura la dirección IP local de tu máquina en [order_provider.dart](file:///D:/programacion/UI-HieloPedido/lib/providers/order_provider.dart) (usa `10.0.2.2` si corres en el emulador de Android Studio).
+2. Configura la dirección IP local de tu máquina en el archivo de configuración del proveedor (`lib/providers/order_provider.dart`) (usa `10.0.2.2` si corres en el emulador de Android Studio).
 3. Inicia tu emulador Android o conecta tu celular por USB.
 4. Presiona **Run** en Android Studio.
 
@@ -80,6 +80,6 @@ Abre el proyecto `D:\programacion\UI-HieloPedido` en **Android Studio**.
 
 Para más información sobre el funcionamiento del sistema, consulta los siguientes archivos:
 
-*   [Guía de Arquitectura](file:///d:/programacion/ice/docs/ARCHITECTURE.md): Explicación técnica del patrón Outbox Transaccional y la estrategia de seguridad con JWT.
-*   [Referencia de APIs](file:///d:/programacion/ice/docs/API_REFERENCE.md): Detalles de endpoints de autenticación, pedidos y sincronización de datos.
-*   [Guía de Troubleshooting](file:///d:/programacion/ice/docs/TROUBLESHOOTING.md): Soluciones rápidas a errores comunes en base de datos, puertos o inicio de sesión.
+*   [Guía de Arquitectura](docs/ARCHITECTURE.md): Explicación técnica del patrón Outbox Transaccional y la estrategia de seguridad con JWT.
+*   [Referencia de APIs](docs/API_REFERENCE.md): Detalles de endpoints de autenticación, pedidos y sincronización de datos.
+*   [Guía de Troubleshooting](docs/TROUBLESHOOTING.md): Soluciones rápidas a errores comunes en base de datos, puertos o inicio de sesión.
