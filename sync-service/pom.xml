@@ -93,6 +93,30 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+            <!-- Bind surefire + failsafe to the verify phase so `mvn verify` actually
+                 runs *IT.java classes. Without these explicit binds, Failsafe is silently
+                 skipped (only Surefire's *Test classes run) and the IT suite never runs.
+                 The systemPropertyVariables mirror order-service: inject jwt.secret so
+                 JwtSecretEnvironmentPostProcessor (which runs before application-test.yml
+                 is read) sees a value >= 32 bytes. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <jwt.secret>test-secret-test-secret-test-secret-32+bytes</jwt.secret>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <jwt.secret>test-secret-test-secret-test-secret-32+bytes</jwt.secret>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>

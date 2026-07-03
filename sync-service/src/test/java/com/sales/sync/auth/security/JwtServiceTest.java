@@ -38,9 +38,18 @@ class JwtServiceTest {
         JwtService svc = newService("a".repeat(40));
         String token = svc.sign(UUID.randomUUID(), null);
 
-        // Flip the last character of the signature segment
-        String tampered = token.substring(0, token.length() - 1)
-                + (token.charAt(token.length() - 1) == 'A' ? 'B' : 'A');
+        // Tamper a character in the middle of the signature segment.
+        // HS256 → 32 bytes → 43 base64url chars, the last char only
+        // encodes 4 of 6 bits; flipping it can land in padding bits and
+        // leave the decoded bytes unchanged → HMAC still verifies → no
+        // exception.  A middle-byte mutation always changes at least
+        // one decoded byte and guarantees signature verification fails.
+        String[] parts = token.split("\\.");
+        String sig = parts[2];
+        int mid = sig.length() / 2;
+        char mutated = sig.charAt(mid) == 'A' ? 'B' : 'A';
+        String tampered = parts[0] + "." + parts[1] + "."
+                + sig.substring(0, mid) + mutated + sig.substring(mid + 1);
 
         assertThatThrownBy(() -> svc.parse(tampered))
                 .isInstanceOfAny(TokenInvalidException.class);

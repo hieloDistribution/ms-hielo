@@ -23,6 +23,7 @@ import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -144,6 +145,56 @@ class RefreshRotationIT extends AbstractPostgresIT {
         // Family NOT burned — the row stays revoked=false so a future login
         // can keep using the same family.
         assertThat(tokens.findAll().get(0).isRevoked()).isFalse();
+    }
+
+    @Test
+    void refresh_rotation_preserves_sibling_in_same_family() {
+        seedUser("alice@example.com");
+
+        // Login from device A → row A in a fresh family.
+        var loginA = post("/api/v1/auth/login",
+                new LoginRequest("alice@example.com", "correctPassword123"));
+        String refreshA = loginA.get("refresh_token").asText();
+        UUID family = tokens.findAll().get(0).getTokenFamily();
+
+        // Login from device B → row B joins the same family.
+        var loginB = post("/api/v1/auth/login",
+                new LoginRequest("alice@example.com", "correctPassword123"));
+        String refreshB = loginB.get("refresh_token").asText();
+        List<RefreshToken> afterLogin = tokens.findAll();
+        assertThat(afterLogin).hasSize(2);
+        assertThat(afterLogin).allMatch(r -> r.getTokenFamily().equals(family));
+
+        UUID rowAId = afterLogin.stream()
+                .filter(r -> r.getTokenFamily().equals(family))
+                .findFirst().orElseThrow().getId();
+        UUID rowBId = afterLogin.stream()
+                .filter(r -> !r.getId().equals(rowAId))
+                .findFirst().orElseThrow().getId();
+
+        // Rotate device A's token.
+        var resp = http.postForEntity(
+                "http://localhost:" + port + "/api/v1/auth/refresh",
+                new RefreshRequest(refreshA),
+                String.class);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(readTree(resp.getBody()).get("access_token").asText()).isNotBlank();
+
+        List<RefreshToken> afterRotate = tokens.findAll();
+        assertThat(afterRotate).hasSize(3);
+
+        RefreshToken rowA = afterRotate.stream().filter(r -> r.getId().equals(rowAId)).findFirst().orElseThrow();
+        RefreshToken rowB = afterRotate.stream().filter(r -> r.getId().equals(rowBId)).findFirst().orElseThrow();
+        RefreshToken newRow = afterRotate.stream()
+                .filter(r -> !r.getId().equals(rowAId) && !r.getId().equals(rowBId))
+                .findFirst().orElseThrow();
+
+        assertThat(rowA.isRevoked()).isTrue();
+        assertThat(rowB.isRevoked()).as("sibling device B must survive rotation").isFalse();
+        assertThat(rowA.getTokenFamily()).isEqualTo(family);
+        assertThat(rowB.getTokenFamily()).isEqualTo(family);
+        assertThat(newRow.getTokenFamily()).isEqualTo(family);
     }
 
     private void seedExpiredRow(String email, UUID family) {

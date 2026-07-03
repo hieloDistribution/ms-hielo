@@ -97,9 +97,17 @@ token row for that login attempt.
 ### Requirement: Login On A Locked Account Is Rejected Regardless Of Password Correctness
 
 The `sync-service` MUST, on `POST /api/v1/auth/login` when the target account
-is locked, return HTTP 401 with a JSON body of `{"error":"Account locked"}`,
-regardless of whether the supplied password is correct, and MUST NOT persist
-any refresh token row.
+is locked, return HTTP 423 (Locked, per RFC 4918 §11.3) with a JSON body of
+`{"error":"account_locked"}`, regardless of whether the supplied password is
+correct, and MUST NOT persist any refresh token row.
+
+> **Source-of-truth note** (added when this change was promoted from delta to
+> canonical): the original draft of this scenario mandated HTTP 401 and the
+> body literal `"Account locked"`. During `sdd-verify` we found that
+> `design.md` (error mapping table) and the implementation both already
+> returned HTTP 423 with `{"error":"account_locked"}`, and that HTTP 423 is
+> the more accurate status code for a locked resource. The spec was aligned
+> to design and code, not the other way around.
 
 #### Scenario: Locked Account Returns Account Locked Error
 
@@ -107,8 +115,8 @@ any refresh token row.
   locked
 - WHEN the client calls `POST /api/v1/auth/login` with that email and any
   password (correct or incorrect)
-- THEN the response status is 401
-- AND the response body equals `{"error":"Account locked"}`
+- THEN the response status is 423
+- AND the response body equals `{"error":"account_locked"}`
 - AND no new row is written to the refresh tokens table
 
 ### Requirement: Refresh Token Rotation Issues A New Token And Revokes The Presented One
