@@ -1,0 +1,108 @@
+# =============================================================================
+# OpenSpec SDD Configuration — hielo
+# =============================================================================
+# Project-wide SDD configuration. Edit deliberately; downstream sdd-* agents
+# read this file as part of the parent contract.
+
+project:
+  name: hielo
+  description: >
+    Multi-module backend monorepo for order processing and synchronization
+    services. Java 21 + Spring Boot 3.x, Maven build, Package by Layers.
+  root: /home/hat/projects/hielo
+
+stack:
+  language: Java
+  java_version: "21"
+  framework: Spring Boot 3.x
+  build_tool: Maven
+  modules:
+    - sync-service
+    - order-service
+  package_convention: Package by Layers (controller / service / repository / model)
+  backend_language: Java
+  client_dir: android-spec/
+  client_stack: Kotlin + Jetpack Room + WorkManager (out of scope for backend SDD)
+
+# Strict TDD: every apply cycle MUST start with a failing test. The sdd-apply
+# and sdd-verify phases will enforce RED -> GREEN -> TRIANGULATE -> REFACTOR
+# and require evidence (test command + observed output) for each task.
+strict_tdd: true
+
+test_runner:
+  primary: mvn test
+  verify: mvn verify
+  framework: Spring Boot Test starter (JUnit 5 + Mockito + AssertJ)
+  notes: >
+    Per-module commands are `mvn -pl <module> test` and
+    `mvn -pl <module> -am test`. Use `-DskipITs=false` only when integration
+    tests are in scope.
+
+sdd:
+  enabled: true
+  artifact_store: openspec
+  changes_root: openspec/changes/
+  current_change: null  # archived 2026-07-03 -- see openspec/changes/archive/2026-07-03-auth-foundation/
+  working_branch: feature/auth-foundation
+  execution_mode: interactive
+  chained_pr_strategy: auto-forecast
+  review_budget_lines: 400
+
+  # Phase order is enforced by the runtime agents. The list below documents
+  # the canonical SDD lifecycle for this project; do not skip ahead.
+  phases:
+    - id: init
+      executor: sdd-init
+      purpose: Bootstrap project SDD configuration and context.
+      produces: [config.yaml]
+    - id: explore
+      executor: sdd-explore
+      purpose: Investigate the change, surface gaps, list risks.
+      produces: [explore/]
+    - id: proposal
+      executor: sdd-proposal
+      purpose: Business-level proposal with product question round.
+      produces: [proposal/proposal.md]
+    - id: spec
+      executor: sdd-spec
+      purpose: Delta spec with requirements and scenarios.
+      produces: [specs/*]
+      depends_on: [proposal]
+    - id: design
+      executor: sdd-design
+      purpose: Technical approach, dependencies, contracts.
+      produces: [design.md]
+      depends_on: [proposal]
+    - id: tasks
+      executor: sdd-tasks
+      purpose: Implementation tasks with review workload forecast.
+      produces: [tasks.md]
+      depends_on: [spec, design]
+    - id: apply
+      executor: sdd-apply
+      purpose: Implement with strict TDD (RED first).
+      produces: [apply-progress.md]
+      depends_on: [tasks, spec, design]
+    - id: verify
+      executor: sdd-verify
+      purpose: Validate implementation against spec + TDD evidence.
+      produces: [verify-report.md]
+      depends_on: [apply]
+    - id: sync
+      executor: sdd-sync
+      purpose: Promote delta specs to canonical specs.
+      produces: [sync-report.md]
+      depends_on: [verify]
+    - id: archive
+      executor: sdd-archive
+      purpose: Close the change.
+      produces: [archive-report.md]
+      depends_on: [sync]
+
+  phase_gate_rules:
+    - One phase per interactive turn unless the user explicitly approves batch.
+    - Approval keywords: continue, dale, go on, sigamos, próximo.
+    - proposal phase MUST run a product question round before writing.
+    - apply under strict_tdd MUST start with the RED step in evidence.
+    - chained_pr_strategy auto-forecast recommends chained PRs once
+      estimated changed lines > review_budget_lines.

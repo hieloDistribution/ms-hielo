@@ -53,6 +53,38 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- Apache HttpClient 5: a more predictable test HTTP client than the JDK HttpClient,
+             which tries to retry POSTs that receive 401 even without a WWW-Authenticate header. -->
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Spring Boot Starter Security: Authentication + Servlet security -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Starter OAuth2 Resource Server: brings Nimbus JOSE+JWT -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+
+        <!-- Flyway: schema migrations for sync_db. Flyway 9.x (managed by Spring Boot 3.2.5) bundles PostgreSQL support inside flyway-core; the separate flyway-database-postgresql artifact is only needed for Flyway 10+. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Actuator: exposes /actuator/health for the FullAppSmokeIT and for ops visibility. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
@@ -60,6 +92,30 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <!-- Bind surefire + failsafe to the verify phase so `mvn verify` actually
+                 runs *IT.java classes. Without these explicit binds, Failsafe is silently
+                 skipped (only Surefire's *Test classes run) and the IT suite never runs.
+                 The systemPropertyVariables mirror order-service: inject jwt.secret so
+                 JwtSecretEnvironmentPostProcessor (which runs before application-test.yml
+                 is read) sees a value >= 32 bytes. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <jwt.secret>test-secret-test-secret-test-secret-32+bytes</jwt.secret>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <jwt.secret>test-secret-test-secret-test-secret-32+bytes</jwt.secret>
+                    </systemPropertyVariables>
+                </configuration>
             </plugin>
         </plugins>
     </build>

@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${TEST_DB_NAME:sync_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: none                  # see note in src/main/resources/application.yml; matches prod profile for this slice
+  flyway:
+    enabled: true
+    clean-disabled: false                # *IT classes may call flyway.clean() in @AfterEach
+
+jwt:
+  secret: test-secret-test-secret-test-secret-32+bytes    # 41 bytes, ≥32
+  access-token-ttl: 900s
+  refresh-token-ttl: 604800s
+  issuer: hielo-sync
+  audience: hielo-order
+
+security:
+  bcrypt-cost: 4
