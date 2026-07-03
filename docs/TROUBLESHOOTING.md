@@ -49,7 +49,7 @@ La aplicación móvil se ejecuta en el emulador de Android Studio pero muestra a
 Si la URL base en el código Flutter está configurada como `localhost` o `127.0.0.1` (e.g., `http://localhost:8081`), la conexión fallará. El emulador Android es una máquina virtual con su propio adaptador de red; para el emulador, `localhost` se refiere al teléfono virtual mismo, no a la PC host.
 
 ### Solución
-1.  Modifica la URL de sincronización en el proveedor del frontend [order_provider.dart](file:///D:/programacion/UI-HieloPedido/lib/providers/order_provider.dart):
+1.  Modifica la URL de sincronización en el proveedor del frontend (por ejemplo, en `lib/providers/order_provider.dart`):
     *   Cambia la IP a la IP virtual especial del host de Android: **`10.0.2.2`**.
     ```dart
     static const String _syncApiUrl = 'http://10.0.2.2:8081/api/v1/sync';
@@ -76,7 +76,7 @@ Spring Boot muestra errores de conexión a base de datos (`Connection refused`) 
     Si tienes otra instancia local de PostgreSQL corriendo nativamente en tu PC, Docker Compose fallará al intentar mapear el puerto `5432`. Debes detener tu servicio Postgres local:
     *   *Windows*: Abre `Servicios` (services.msc), busca `postgresql` y haz clic en Detener. Luego reintenta levantar Docker.
 3.  **Bases de datos faltantes**:
-    El script [init.sql](file:///d:/programacion/ice/init-scripts/init.sql) inicializa los esquemas `sync_db` y `order_db` la primera vez que se levanta el contenedor. Si ya tenías un volumen de PostgreSQL creado anteriormente, Docker omitirá este paso.
+    El script `init-scripts/init.sql` inicializa los esquemas `sync_db` y `order_db` la primera vez que se levanta el contenedor. Si ya tenías un volumen de PostgreSQL creado anteriormente, Docker omitirá este paso.
     Si te faltan las bases de datos, puedes forzar la recreación limpiando los volúmenes antiguos:
     ```bash
     docker-compose down -v
