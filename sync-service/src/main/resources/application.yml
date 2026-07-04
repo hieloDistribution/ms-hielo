@@ -42,3 +42,18 @@ management:
     health:
       probes:
         enabled: true
+
+# ---- PR-2 cross-DB integrity config: forward (sync validates incoming) + reverse (sync calls order) ----
+# The same SYNCHRONOUS shared-secret SYNC_SERVICE_TOKEN signs both directions.
+hielo:
+  sync:
+    auth:
+      # Validator for incoming HTTP at sync-service /internal/** (used by the bearer-token filter).
+      internal-service-token: ${SYNC_SERVICE_TOKEN:dev-shared-secret-change-me}
+  order:
+    internal:
+      # Outbound client from sync-service → order-service /internal/vendors/by-user/{userId}.
+      base-url: ${ORDER_SERVICE_URL:http://localhost:8082}            # order-service actual port (props override yml → 8082)
+      connect-timeout: 1s                                            # D-14
+      read-timeout: 2s                                               # D-14
+      service-token: ${SYNC_SERVICE_TOKEN:dev-shared-secret-change-me}  # R-3 same shared secret
