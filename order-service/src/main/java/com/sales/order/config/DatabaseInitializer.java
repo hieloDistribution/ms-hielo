@@ -1,6 +1,8 @@
 package com.sales.order.config;
 
+import com.sales.order.model.Client;
 import com.sales.order.model.Product;
+import com.sales.order.repository.ClientRepository;
 import com.sales.order.repository.ProductRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,16 +11,26 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
 @Component
 public class DatabaseInitializer implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DatabaseInitializer.class);
 
-    private final ProductRepository productRepository;
+    /**
+     * Deterministic id for the seeded demo Client. Allows tests and dev tools to
+     * reference the seed row without touching the DB. See design §10.
+     */
+    static final UUID SEED_CLIENT_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
-    public DatabaseInitializer(ProductRepository productRepository) {
+    private final ProductRepository productRepository;
+    private final ClientRepository clientRepository;
+
+    public DatabaseInitializer(ProductRepository productRepository,
+                                ClientRepository clientRepository) {
         this.productRepository = productRepository;
+        this.clientRepository = clientRepository;
     }
 
     @Override
@@ -34,6 +46,25 @@ public class DatabaseInitializer implements CommandLineRunner {
             log.info("Catálogo de bolsas de hielo insertado correctamente.");
         } else {
             log.info("El catalogo de productos ya cuenta con registros.");
+        }
+
+        // --- Client seed (PR-1) ------------------------------------------
+        // Idempotent via deterministic UUID: `findById` skips if the row already
+        // exists. The Vendor seed is deferred to PR-2 because it requires a
+        // User to exist in sync_db (cross-DB integrity, design §10).
+        if (clientRepository.findById(SEED_CLIENT_ID).isEmpty()) {
+            log.info("Inicializando Client demo...");
+            Client seed = new Client();
+            seed.setId(SEED_CLIENT_ID);
+            seed.setName("Cliente de Prueba");
+            seed.setTaxId("00000000001");
+            seed.setAddress("Av. Siempre Viva 742");
+            seed.setPhone("+54 11 5555 0000");
+            seed.setEmail("seed@example.com");
+            clientRepository.save(seed);
+            log.info("Client demo insertado correctamente (id={}).", SEED_CLIENT_ID);
+        } else {
+            log.info("Client demo ya existe (id={}).", SEED_CLIENT_ID);
         }
     }
 }
