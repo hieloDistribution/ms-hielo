@@ -33,6 +33,7 @@ public class Product {
         this.name = name;
         this.price = price;
         this.stock = stock;
+        this.weightKg = weightKg;
     }
 
     public String getId() {
@@ -65,5 +66,13 @@ public class Product {
 
     public void setStock(Integer stock) {
         this.stock = stock;
+    }
+
+    public Double getWeightKg() {
+        return weightKg;
+    }
+
+    public void setWeightKg(Double weightKg) {
+        this.weightKg = weightKg;
     }
 }
