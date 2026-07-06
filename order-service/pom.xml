@@ -47,6 +47,12 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Flyway: PR-1 activates Flyway in order-service for the first time. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+
         <!-- Spring Boot Starter Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

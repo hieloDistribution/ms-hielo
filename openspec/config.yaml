@@ -9,7 +9,7 @@ project:
   description: >
     Multi-module backend monorepo for order processing and synchronization
     services. Java 21 + Spring Boot 3.x, Maven build, Package by Layers.
-  root: /home/hat/projects/hielo
+  root: /home/hat/projects/ms-hielo
 
 stack:
   language: Java
@@ -42,8 +42,8 @@ sdd:
   enabled: true
   artifact_store: openspec
   changes_root: openspec/changes/
-  current_change: null  # archived 2026-07-03 -- see openspec/changes/archive/2026-07-03-auth-foundation/
-  working_branch: feature/auth-foundation
+  current_change: core-domain-model
+  working_branch: feature/core-domain-model
   execution_mode: interactive
   chained_pr_strategy: auto-forecast
   review_budget_lines: 400
