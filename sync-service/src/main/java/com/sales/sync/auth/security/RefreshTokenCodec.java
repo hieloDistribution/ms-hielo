@@ -11,7 +11,7 @@ import java.util.UUID;
 /**
  * Generates opaque refresh tokens (UUID v4) and computes their SHA-256
  * hex hash for storage. The plaintext is returned to the client exactly
- * once; only the hash is persisted.
+ * once; only the hash is persisted.                  
  */
 @Component
 public class RefreshTokenCodec {

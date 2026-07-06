@@ -46,7 +46,7 @@ public class SyncService {
         for (MutationDto mutation : mutations) {
             String mutationId = mutation.getId();
             
-            // 1. Validar Idempotencia
+            // Validar Idempotencia
             Optional<ProcessedRequest> existingRequest = processedRequestRepository.findById(mutationId);
             if (existingRequest.isPresent() && "SUCCESS".equals(existingRequest.get().getStatus())) {
                 log.info("Mutacion ya procesada con exito (Idempotencia): {}", mutationId);
@@ -54,21 +54,21 @@ public class SyncService {
                 continue;
             }
 
-            // 2. Registrar/Actualizar estado a PENDING en base de datos local de idempotencia
+            // Registrar/Actualizar estado a PENDING en base de datos local de idempotencia
             ProcessedRequest requestLog = existingRequest.orElseGet(() -> new ProcessedRequest(mutationId, "PENDING", LocalDateTime.now()));
             requestLog.setStatus("PENDING");
             requestLog.setProcessedAt(LocalDateTime.now());
             processedRequestRepository.save(requestLog);
 
             try {
-                // 3. Delegar al Microservicio 2 (order-service)
+                // Delegar al Microservicio 2 (order-service)
                 if ("ORDER".equalsIgnoreCase(mutation.getEntityType())) {
                     executeOrderMutation(mutation);
                 } else {
                     throw new IllegalArgumentException("Tipo de entidad no soportado: " + mutation.getEntityType());
                 }
 
-                // 4. Si tiene éxito, actualizar estado a SUCCESS
+                // Si tiene éxito, actualizar estado a SUCCESS
                 requestLog.setStatus("SUCCESS");
                 processedRequestRepository.save(requestLog);
                 processedIds.add(mutationId);
