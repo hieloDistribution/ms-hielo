@@ -23,9 +23,12 @@ public class Product {
     @Column(name = "stock", nullable = false)
     private Integer stock;
 
+    @Column(name = "weight_kg", nullable = false)
+    private Double weightKg;
+
     public Product() {}
 
-    public Product(String id, String name, BigDecimal price, Integer stock) {
+    public Product(String id, String name, BigDecimal price, Integer stock, Double weightKg) {
         this.id = id;
         this.name = name;
         this.price = price;
