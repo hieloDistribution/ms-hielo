@@ -1,33 +1,26 @@
 package com.sales.sync.auth.repository;
 
-import com.sales.sync.SyncServiceApplication;
 import com.sales.sync.auth.model.User;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.ContextConfiguration;
-
+import com.sales.sync.auth.it.AbstractPostgresIT;
 import java.util.Optional;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.junit.jupiter.api.BeforeEach;
+
 /**
- * RED-first slice test for UserRepository.findByEmail. {@link DataJpaTest}
- * boots a JPA slice; before the User @Entity exists the slice fails to
- * load ("No qualifying bean of type UserRepository" / "Not a managed
- * type: class com.sales.sync.auth.model.User"). After the entity +
- * repository exist this test goes GREEN.
+ * RED-first slice test for UserRepository.findByEmail.
  */
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@ActiveProfiles("test")
-@ContextConfiguration(classes = SyncServiceApplication.class)
-class UserRepositoryContractTest {
+class UserRepositoryContractTest extends AbstractPostgresIT {
 
     @Autowired
     UserRepository users;
+
+    @BeforeEach
+    void clean() {
+        users.deleteAll();
+    }
 
     @Test
     void findByEmail_returns_user_when_present() {

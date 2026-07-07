@@ -1,27 +1,21 @@
 package com.sales.sync.auth.repository;
 
-import com.sales.sync.SyncServiceApplication;
 import com.sales.sync.auth.model.RefreshToken;
 import com.sales.sync.auth.model.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.ContextConfiguration;
+import com.sales.sync.auth.it.AbstractPostgresIT;
 
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.transaction.annotation.Transactional;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@ActiveProfiles("test")
-@ContextConfiguration(classes = SyncServiceApplication.class)
-class RefreshTokenRepositoryContractTest {
+class RefreshTokenRepositoryContractTest extends AbstractPostgresIT {
 
     @Autowired RefreshTokenRepository tokens;
     @Autowired UserRepository users;
@@ -84,6 +78,7 @@ class RefreshTokenRepositoryContractTest {
     }
 
     @Test
+    @Transactional
     void burnFamily_marks_every_non_revoked_row_in_family_as_revoked() {
         User u = newUser("dave@example.com");
         UUID family = UUID.randomUUID();
@@ -97,5 +92,56 @@ class RefreshTokenRepositoryContractTest {
         assertThat(affected).isEqualTo(2);
         assertThat(tokens.findById(a.getId()).orElseThrow().isRevoked()).isTrue();
         assertThat(tokens.findById(b.getId()).orElseThrow().isRevoked()).isTrue();
+    }
+
+    @Test
+    @Transactional
+    void deleteExpiredTokens_deletes_only_expired_tokens() {
+        User u = newUser("cleanup@example.com");
+        UUID family = UUID.randomUUID();
+
+        // 1. Expired, not revoked
+        RefreshToken expiredNotRevoked = new RefreshToken();
+        expiredNotRevoked.setUserId(u.getId());
+        expiredNotRevoked.setTokenFamily(family);
+        expiredNotRevoked.setTokenHash("1".repeat(64));
+        expiredNotRevoked.setExpiresAt(Instant.now().minusSeconds(60));
+        expiredNotRevoked.setRevoked(false);
+        tokens.save(expiredNotRevoked);
+
+        // 2. Expired, revoked
+        RefreshToken expiredRevoked = new RefreshToken();
+        expiredRevoked.setUserId(u.getId());
+        expiredRevoked.setTokenFamily(family);
+        expiredRevoked.setTokenHash("2".repeat(64));
+        expiredRevoked.setExpiresAt(Instant.now().minusSeconds(120));
+        expiredRevoked.setRevoked(true);
+        tokens.save(expiredRevoked);
+
+        // 3. Not expired, not revoked
+        RefreshToken activeNotRevoked = new RefreshToken();
+        activeNotRevoked.setUserId(u.getId());
+        activeNotRevoked.setTokenFamily(family);
+        activeNotRevoked.setTokenHash("3".repeat(64));
+        activeNotRevoked.setExpiresAt(Instant.now().plusSeconds(3600));
+        activeNotRevoked.setRevoked(false);
+        tokens.save(activeNotRevoked);
+
+        // 4. Not expired, revoked (must be kept for replay detection)
+        RefreshToken activeRevoked = new RefreshToken();
+        activeRevoked.setUserId(u.getId());
+        activeRevoked.setTokenFamily(family);
+        activeRevoked.setTokenHash("4".repeat(64));
+        activeRevoked.setExpiresAt(Instant.now().plusSeconds(1800));
+        activeRevoked.setRevoked(true);
+        tokens.save(activeRevoked);
+
+        int deleted = tokens.deleteExpiredTokens(Instant.now());
+
+        assertThat(deleted).isEqualTo(2);
+        assertThat(tokens.findById(expiredNotRevoked.getId())).isEmpty();
+        assertThat(tokens.findById(expiredRevoked.getId())).isEmpty();
+        assertThat(tokens.findById(activeNotRevoked.getId())).isPresent();
+        assertThat(tokens.findById(activeRevoked.getId())).isPresent();
     }
 }

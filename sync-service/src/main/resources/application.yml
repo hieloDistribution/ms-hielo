@@ -57,3 +57,7 @@ hielo:
       connect-timeout: 1s                                            # D-14
       read-timeout: 2s                                               # D-14
       service-token: ${SYNC_SERVICE_TOKEN:dev-shared-secret-change-me}  # R-3 same shared secret
+
+auth:
+  cleanup:
+    cron: "0 0 3 * * *"
