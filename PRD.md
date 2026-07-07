@@ -64,9 +64,11 @@ Este microservicio interactúa con la base de datos transaccional central. Proce
     *   Procesar pedidos confirmados y consolidarlos en la base de datos PostgreSQL.
     *   Exponer APIs para que el vendedor consulte el estado actualizado y "real" de sus pedidos y el catálogo cuando tenga conexión.
     *   Validar la firma del token JWT localmente con el secreto compartido y proveer información del vendedor mediante un contexto local (`VendorContext`).
+    *   **Control de Autorización**: Restringir el acceso a los pedidos de forma que solo el vendedor dueño de la sesión actual pueda consultar, crear, modificar o eliminar sus propios pedidos (verificación estricta de `vendor_id` del JWT contra `salesperson_id` del pedido).
 *   **API Endpoints**:
-    *   `POST /api/v1/orders`: Crea un pedido definitivo procesado. (Protegido con JWT)
-    *   `GET /api/v1/orders/{order_id}`: Obtiene el detalle consolidado de un pedido. (Protegido con JWT)
+    *   `POST /api/v1/orders`: Crea o actualiza un pedido definitivo. Requiere que `vendor_id` de la sesión coincida con `salespersonId` del pedido. (Protegido con JWT, retorna 403 en caso de discrepancia o ausencia de vendedor).
+    *   `GET /api/v1/orders/{order_id}`: Obtiene el detalle consolidado de un pedido. Solo accesible si el pedido pertenece al vendedor autenticado. (Protegido con JWT, retorna 403 si pertenece a otro vendedor).
+    *   `DELETE /api/v1/orders/{order_id}`: Elimina físicamente un pedido y revierte stock. Solo accesible si el pedido pertenece al vendedor autenticado. (Protegido con JWT, retorna 403 si pertenece a otro vendedor).
     *   `GET /api/v1/orders/catalog`: Descarga de catálogo optimizada para caché local en el dispositivo. (Protegido con JWT)
 
 ---

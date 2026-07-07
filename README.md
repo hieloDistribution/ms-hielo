@@ -80,6 +80,6 @@ Abre el proyecto `UI-HieloPedido` (que debería estar clonado como carpeta herma
 
 Para más información sobre el funcionamiento del sistema, consulta los siguientes archivos:
 
-*   [Guía de Arquitectura](docs/ARCHITECTURE.md): Explicación técnica del patrón Outbox Transaccional y la estrategia de seguridad con JWT.
-*   [Referencia de APIs](docs/API_REFERENCE.md): Detalles de endpoints de autenticación, pedidos y sincronización de datos.
-*   [Guía de Troubleshooting](docs/TROUBLESHOOTING.md): Soluciones rápidas a errores comunes en base de datos, puertos o inicio de sesión.
+*   [Guía de Arquitectura](docs/ARCHITECTURE.md): Explicación técnica del patrón Outbox Transaccional, la estrategia de seguridad con JWT, la **limpieza automatizada de tokens de refresco expirados** y el **mecanismo de restricción de pedidos por vendedor autenticado**.
+*   [Referencia de APIs](docs/API_REFERENCE.md): Detalles de endpoints de autenticación, pedidos (incluyendo respuestas de error de validación y de autorización `403 Forbidden`) y sincronización de datos.
+*   [Guía de Troubleshooting](docs/TROUBLESHOOTING.md): Soluciones rápidas a errores comunes en base de datos, puertos, inicio de sesión y compatibilidad de frameworks de test en Java 25.
