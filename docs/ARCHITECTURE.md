@@ -70,7 +70,15 @@ Para evitar el uso malintencionado de tokens de refresco robados, se implementa 
 *   **Detección de Replay**: Si un atacante roba un `refresh_token` que ya ha sido usado (o si el cliente legítimo lo vuelve a usar por error de red), el servidor detecta que el registro ya está marcado como revocado.
 *   **Respuesta de Pánico**: Ante una reutilización, el sistema asume que el token fue interceptado. **Revoca inmediatamente todos los tokens activos pertenecientes a esa misma familia** (quemando la familia), forzando a que todas las sesiones de ese flujo deban iniciar sesión de nuevo.
 
-### C. Requerimiento Crítico de Inicio: JWT_SECRET
+### C. Limpieza Programada de Tokens Expirados (Token Cleanup Job)
+Dado que cada inicio de sesión y rotación genera nuevos registros en la tabla `refresh_tokens`, para evitar un crecimiento desmedido de la base de datos se ejecuta un proceso automático en segundo plano:
+*   **Orquestación**: Un servicio de limpieza programado (`RefreshTokenCleanupService`) se ejecuta periódicamente utilizando el planificador de Spring (`@EnableScheduling`).
+*   **Frecuencia**: Ejecución diaria a las 3:00 AM (configurable mediante la propiedad `auth.cleanup.cron` en `application.yml`).
+*   **Criterio de borrado seguro**: La consulta elimina registros donde `expires_at < NOW()`.
+    > [!IMPORTANT]
+    > **Garantía de Seguridad**: Los tokens revocados pero que **aún no han expirado** no se eliminan de la base de datos. Deben mantenerse activos en el almacenamiento hasta su tiempo de vida original (`expires_at`) para asegurar que el motor de rotación pueda seguir detectando posibles intentos de reutilización (*replay attacks*) y quemar la familia correspondiente en caso de anomalía.
+
+### D. Requerimiento Crítico de Inicio: JWT_SECRET
 Para impedir brechas de seguridad por contraseñas débiles en producción, ambos microservicios emplean un validador en el arranque del contexto de Spring (`JwtSecretValidator`).
 *   **Regla**: El valor de la propiedad `jwt.secret` (leído de la variable de entorno `JWT_SECRET`) **debe poseer una longitud mínima de 32 bytes (256 bits)**.
 *   Si no se cumple esta condición, el contexto falla inmediatamente al iniciar (`ContextRefreshedEvent`), la aplicación lanza un error crítico y se cierra con un código de salida distinto de cero, impidiendo quedar expuesta sin configuraciones seguras.
