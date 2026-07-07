@@ -1,6 +1,6 @@
-# PRD - Sistema de Registro de Pedidos Offline-First
+# PRD - Sistema de Registro de Pedidos Offline-First (B2B)
 
-Este documento define el diseño arquitectónico y los requerimientos del producto para el sistema de registro de pedidos offline-first para vendedores. El sistema consta de una aplicación cliente Android/Flutter y dos microservicios Java en el backend.
+Este documento define el diseño arquitectónico y los requerimientos del producto para el sistema **B2B (Business-to-Business)** de registro de pedidos offline-first para distribuidores y vendedores mayoristas de hielo. El sistema consta de una aplicación cliente Android/Flutter y dos microservicios Java en el backend.
 
 ---
 
