@@ -1,6 +1,6 @@
 # HieloPedido - Sistema de Pedidos Offline-First (B2B)
 
-Este es el repositorio principal para el sistema **B2B (Business-to-Business)** de registro y sincronización de pedidos offline-first para la distribución mayorista de hielo. El sistema está diseñado para que los distribuidores y vendedores registren pedidos en la calle (incluso sin conectividad celular en depósitos o cámaras frigoríficas) y los sincronicen automáticamente al recuperar internet.
+Este es el repositorio principal para el sistema **B2B (Business-to-Business)** de registro y sincronización de pedidos offline-first para la distribución mayorista de hielo. El sistema está diseñado para que los **preventistas** registren pedidos en la calle (incluso sin conectividad celular en depósitos o cámaras frigoríficas) y los sincronicen automáticamente al recuperar internet.
 
 El sistema consta de:
 1. **Cliente Móvil (Frontend)**: Desarrollado en Flutter, ubicado en el repositorio frontend independiente (`UI-HieloPedido`).
@@ -80,11 +80,11 @@ Abre el proyecto `UI-HieloPedido` (que debería estar clonado como carpeta herma
 
 > [!IMPORTANT]
 > **Lectura Obligatoria para Todos los Desarrolladores (Frontend y Backend)**:
-> Es requisito fundamental que todo desarrollador (especialmente del frontend) lea y se ciña estrictamente a esta documentación del backend (`PRD.md` y archivos en `docs/`) antes de escribir código. Toda la lógica de negocio (como pesos mínimos de pedidos de 100 kg, límites de ruta de 5.000 kg y control de stock por formato) y el control de accesos por vendedor están definidos por el backend; el cliente frontend debe respetar y reflejar estos contratos y restricciones para evitar el rechazo de peticiones (errores `400 Bad Request` y `403 Forbidden`) y garantizar la consistencia.
+> Es requisito fundamental que todo desarrollador (especialmente del frontend) lea y se ciña estrictamente a esta documentación del backend (`PRD.md` y archivos en `docs/`) antes de escribir código. Toda la lógica de negocio (como pesos mínimos de pedidos de 100 kg, límites de ruta de 5.000 kg y control de stock por formato) y el control de accesos por preventista están definidos por el backend; el cliente frontend debe respetar y reflejar estos contratos y restricciones para evitar el rechazo de peticiones (errores `400 Bad Request` y `403 Forbidden`) y garantizar la consistencia.
 
 Para más información sobre el funcionamiento del sistema, consulta los siguientes archivos:
 
 *   [PRD](PRD.md): Documento de requerimientos del producto detallando la arquitectura y endpoints del sistema.
-*   [Guía de Arquitectura](docs/ARCHITECTURE.md): Explicación técnica del patrón Outbox Transaccional, la estrategia de seguridad con JWT, la **limpieza automatizada de tokens de refresco expirados** y el **mecanismo de restricción de pedidos por vendedor autenticado**.
+*   [Guía de Arquitectura](docs/ARCHITECTURE.md): Explicación técnica del patrón Outbox Transaccional, la estrategia de seguridad con JWT, la **limpieza automatizada de tokens de refresco expirados** y el **mecanismo de restricción de pedidos por preventista autenticado**.
 *   [Referencia de APIs](docs/API_REFERENCE.md): Detalles de endpoints de autenticación, pedidos (incluyendo respuestas de error de validación y de autorización `403 Forbidden`) y sincronización de datos.
 *   [Guía de Troubleshooting](docs/TROUBLESHOOTING.md): Soluciones rápidas a errores comunes en base de datos, puertos, inicio de sesión y compatibilidad de frameworks de test en Java 25.

@@ -59,7 +59,7 @@ El sistema implementa un esquema de autenticación centralizada y autorización 
 *   **`order-service` (Recurso Protegido)**:
     *   No tiene acceso directo a la base de datos de usuarios. Valida los tokens de acceso localmente utilizando el secreto compartido `JWT_SECRET`.
     *   Intercepta las peticiones en [JwtAuthenticationFilter](order-service/src/main/java/com/sales/order/auth/security/JwtAuthenticationFilter.java), valida la firma, emisor, audiencia y tiempo de expiración.
-    *   Si el token es válido, puebla el contexto de seguridad (`SecurityContext`) y expone los detalles del vendedor a través de un bean de alcance de petición (`@RequestScope`) llamado [VendorContext](order-service/src/main/java/com/sales/order/auth/security/VendorContext.java).
+    *   Si el token es válido, puebla el contexto de seguridad (`SecurityContext`) y expone los detalles del preventista (denominado en el código como `vendor` / `salesperson`) a través de un bean de alcance de petición (`@RequestScope`) llamado [VendorContext](order-service/src/main/java/com/sales/order/auth/security/VendorContext.java).
 
 ### B. Rotación y Detección de Robo de Tokens de Refresco (Theft Detection)
 Para evitar el uso malintencionado de tokens de refresco robados, se implementa la técnica de **detección por reutilización (replay)** en [RefreshRotationService.java](sync-service/src/main/java/com/sales/sync/auth/service/RefreshRotationService.java):
@@ -83,13 +83,13 @@ Para impedir brechas de seguridad por contraseñas débiles en producción, ambo
 *   **Regla**: El valor de la propiedad `jwt.secret` (leído de la variable de entorno `JWT_SECRET`) **debe poseer una longitud mínima de 32 bytes (256 bits)**.
 *   Si no se cumple esta condición, el contexto falla inmediatamente al iniciar (`ContextRefreshedEvent`), la aplicación lanza un error crítico y se cierra con un código de salida distinto de cero, impidiendo quedar expuesta sin configuraciones seguras.
 
-### E. Autorización de Pedidos por Vendedor (BFLA/BOLA Prevention)
+### E. Autorización de Pedidos por Preventista (BFLA/BOLA Prevention)
 Para prevenir vulnerabilidades de autorización a nivel de función y de objeto (OWASP BOLA/BFLA), el sistema de pedidos en `order-service` restringe el acceso de forma estricta:
-*   **Contexto de Vendedor**: El filtro de JWT (`JwtAuthenticationFilter`) extrae la propiedad `vendor_id` del token de acceso y la almacena en un bean de alcance de petición (`VendorContext`), que expone el ID de forma segura a la capa de control.
+*   **Contexto de Preventista**: El filtro de JWT (`JwtAuthenticationFilter`) extrae la propiedad `vendor_id` del token de acceso y la almacena en un bean de alcance de petición (`VendorContext`), que expone el ID de forma segura a la capa de control.
 *   **Creación y Edición (`POST /api/v1/orders`)**: Se valida que el `salespersonId` provisto en el cuerpo JSON del pedido coincida exactamente con el `vendor_id` almacenado en el `VendorContext` de la sesión.
 *   **Consulta por ID (`GET /api/v1/orders/{orderId}`)**: Al buscar el pedido, se verifica que la propiedad `salespersonId` del registro en base de datos coincida con el `vendor_id` de la sesión.
 *   **Eliminación (`DELETE /api/v1/orders/{orderId}`)**: Se valida la propiedad del pedido en base de datos antes de proceder a la eliminación física y la reversión de stock.
-*   *Cualquier discrepancia de vendedor o ausencia de `vendor_id` en la sesión resulta en una respuesta inmediata `403 Forbidden`.*
+*   *Cualquier discrepancia de preventista o ausencia de `vendor_id` en la sesión resulta en una respuesta inmediata `403 Forbidden`.*
 
 ---
 

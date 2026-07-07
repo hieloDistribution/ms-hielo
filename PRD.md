@@ -1,16 +1,16 @@
 # PRD - Sistema de Registro de Pedidos Offline-First (B2B)
 
-Este documento define el diseño arquitectónico y los requerimientos del producto para el sistema **B2B (Business-to-Business)** de registro de pedidos offline-first para distribuidores y vendedores mayoristas de hielo. El sistema consta de una aplicación cliente Android/Flutter y dos microservicios Java en el backend.
+Este documento define el diseño arquitectónico y los requerimientos del producto para el sistema **B2B (Business-to-Business)** de registro de pedidos offline-first para **preventistas** (encargados de visitar clientes y relevar pedidos en la calle). El sistema consta de una aplicación cliente Android/Flutter y dos microservicios Java en el backend.
 
 ---
 
 ## 1. Arquitectura General del Sistema
 
-El flujo de datos sigue el **Patrón Outbox Transaccional** para garantizar la entrega confiable de mensajes ("at-least-once" delivery con idempotencia en el servidor) y una experiencia fluida para el vendedor sin depender de la conectividad en tiempo real. Adicionalmente, el acceso a los endpoints protegidos está restringido mediante autenticación JWT.
+El flujo de datos sigue el **Patrón Outbox Transaccional** para garantizar la entrega confiable de mensajes ("at-least-once" delivery con idempotencia en el servidor) y una experiencia fluida para el preventista sin depender de la conectividad en tiempo real. Adicionalmente, el acceso a los endpoints protegidos está restringido mediante autenticación JWT.
 
 ```mermaid
 graph TD
-    subgraph Sub_Device ["Dispositivo Android (Vendedor)"]
+    subgraph Sub_Device ["Dispositivo Android (Preventista)"]
         UI[Pantalla de Pedidos] -->|Crear/Modificar| Room[(Base de Datos Room - SQLite)]
         Room -->|Atómico: Orden + Outbox| Outbox[(Tabla Outbox)]
         WorkManager[WorkManager / CoroutineWorker] -->|Lee en orden cronológico| Outbox
@@ -49,9 +49,9 @@ Este microservicio es la puerta de entrada para los clientes móviles. Es el enc
     *   Exponer endpoints de autenticación basados en JWT (HS256) con rotación y detección de robos de tokens de refresco (*theft detection*).
     *   Exponer endpoints REST para la sincronización de operaciones de pedidos.
     *   **Control de Idempotencia**: Verificar si un `client_order_id` (UUID de la mutación) ya fue procesado mediante una consulta rápida a una tabla de auditoría en la base de datos PostgreSQL (`processed_requests`).
-    *   Delegar la creación del pedido al Microservicio 2 de forma síncrona mediante peticiones HTTP REST incluyendo el token del vendedor.
+    *   Delegar la creación del pedido al Microservicio 2 de forma síncrona mediante peticiones HTTP REST incluyendo el token del preventista.
 *   **API Endpoints**:
-    *   `POST /api/v1/auth/login`: Autentica al vendedor (BCrypt hash) y devuelve `access_token` y `refresh_token`. (Público)
+    *   `POST /api/v1/auth/login`: Autentica al preventista (BCrypt hash) y devuelve `access_token` y `refresh_token`. (Público)
     *   `POST /api/v1/auth/refresh`: Permite rotar el refresh token y obtener nuevos tokens de acceso. (Público)
     *   `POST /api/v1/sync`: Recibe un listado de mutaciones del Outbox. (Protegido con JWT)
     *   `GET /api/v1/sync/status/{clientRequestId}`: Consulta el estado de procesamiento de un pedido enviado. (Protegido con JWT)
@@ -62,13 +62,13 @@ Este microservicio interactúa con la base de datos transaccional central. Proce
 *   **Responsabilidades**:
     *   Gestionar el catálogo de productos y clientes.
     *   Procesar pedidos confirmados y consolidarlos en la base de datos PostgreSQL.
-    *   Exponer APIs para que el vendedor consulte el estado actualizado y "real" de sus pedidos y el catálogo cuando tenga conexión.
-    *   Validar la firma del token JWT localmente con el secreto compartido y proveer información del vendedor mediante un contexto local (`VendorContext`).
-    *   **Control de Autorización**: Restringir el acceso a los pedidos de forma que solo el vendedor dueño de la sesión actual pueda consultar, crear, modificar o eliminar sus propios pedidos (verificación estricta de `vendor_id` del JWT contra `salesperson_id` del pedido).
+    *   Exponer APIs para que el preventista consulte el estado actualizado y "real" de sus pedidos y el catálogo cuando tenga conexión.
+    *   Validar la firma del token JWT localmente con el secreto compartido y proveer información del preventista mediante un contexto local (`VendorContext`).
+    *   **Control de Autorización**: Restringir el acceso a los pedidos de forma que solo el preventista dueño de la sesión actual pueda consultar, crear, modificar o eliminar sus propios pedidos (verificación estricta de `vendor_id` del JWT contra `salesperson_id` del pedido).
 *   **API Endpoints**:
-    *   `POST /api/v1/orders`: Crea o actualiza un pedido definitivo. Requiere que `vendor_id` de la sesión coincida con `salespersonId` del pedido. (Protegido con JWT, retorna 403 en caso de discrepancia o ausencia de vendedor).
-    *   `GET /api/v1/orders/{order_id}`: Obtiene el detalle consolidado de un pedido. Solo accesible si el pedido pertenece al vendedor autenticado. (Protegido con JWT, retorna 403 si pertenece a otro vendedor).
-    *   `DELETE /api/v1/orders/{order_id}`: Elimina físicamente un pedido y revierte stock. Solo accesible si el pedido pertenece al vendedor autenticado. (Protegido con JWT, retorna 403 si pertenece a otro vendedor).
+    *   `POST /api/v1/orders`: Crea o actualiza un pedido definitivo. Requiere que `vendor_id` de la sesión coincida con `salespersonId` del pedido. (Protegido con JWT, retorna 403 en caso de discrepancia o ausencia de preventista).
+    *   `GET /api/v1/orders/{order_id}`: Obtiene el detalle consolidado de un pedido. Solo accesible si el pedido pertenece al preventista autenticado. (Protegido con JWT, retorna 403 si pertenece a otro preventista).
+    *   `DELETE /api/v1/orders/{order_id}`: Elimina físicamente un pedido y revierte stock. Solo accesible si el pedido pertenece al preventista autenticado. (Protegido con JWT, retorna 403 si pertenece a otro preventista).
     *   `GET /api/v1/orders/catalog`: Descarga de catálogo optimizada para caché local en el dispositivo. (Protegido con JWT)
 
 ---
