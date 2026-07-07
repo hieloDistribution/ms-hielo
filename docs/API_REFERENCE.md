@@ -18,7 +18,7 @@ Todos los endpoints bajo `/api/v1/auth` son públicos (`permitAll`).
     }
     ```
 *   **Respuestas**:
-    *   **`200 OK`**: Login exitoso. Retorna los tokens y el identificador de vendedor.
+    *   **`200 OK`**: Login exitoso. Retorna los tokens y el identificador de preventista (vendor_id).
         ```json
         {
           "access_token": "eyJhbGciOiJIUzI1NiJ9...",
@@ -163,8 +163,8 @@ Estos endpoints son internos y expuestos para ser consumidos por el `sync-servic
     ```
 *   **Respuestas**:
     *   **`201 Created`**: Pedido guardado y stock descontado exitosamente. Retorna la entidad guardada en PostgreSQL.
-    *   **`400 Bad Request`**: Datos inválidos, producto inexistente, stock disponible insuficiente, o el peso del pedido no cumple con las reglas del negocio (peso mínimo de 100 kg o exceso del límite de 5.000 kg por camión/día).
-    *   **`403 Forbidden`**: El token no posee un vendedor asociado (`vendor_id` nulo) o el `salespersonId` enviado en la orden difiere del `vendor_id` del token JWT.
+    *   **`400 Bad Request`**: Datos inválidos, producto inexistente, stock disponible insuficiente, o el peso del pedido no cumple con las reglas del negocio (peso mínimo de 100 kg o exceso del límite de 5.000 kg por camión/ruta de entrega).
+    *   **`403 Forbidden`**: El token no posee un preventista asociado (`vendor_id` nulo) o el `salespersonId` enviado en la orden difiere del `vendor_id` del token JWT.
         *   Cuerpo: `"No está autorizado a registrar o modificar pedidos para el distribuidor: ..."`
 
 ### B. Obtener un Pedido
@@ -181,7 +181,7 @@ Estos endpoints son internos y expuestos para ser consumidos por el `sync-servic
           "items": [...]
         }
         ```
-    *   **`403 Forbidden`**: El pedido solicitado pertenece a otro vendedor (`salespersonId` diferente al `vendor_id` del token) o el token no tiene vendedor asignado.
+    *   **`403 Forbidden`**: El pedido solicitado pertenece a otro preventista (`salespersonId` diferente al `vendor_id` del token) o el token no tiene preventista asignado.
         *   Cuerpo: `"No está autorizado a consultar pedidos de otros vendedores."`
     *   **`404 Not Found`**: No existe ningún pedido con el ID provisto.
 
@@ -190,13 +190,13 @@ Estos endpoints son internos y expuestos para ser consumidos por el `sync-servic
 *   **Respuestas**:
     *   **`200 OK`**: El pedido se eliminó físicamente de PostgreSQL y el stock de los productos se incrementó de vuelta según las cantidades originales del pedido.
     *   **`400 Bad Request`**: No se encontró ningún pedido con el ID provisto.
-    *   **`403 Forbidden`**: El token no posee un vendedor asociado o el pedido solicitado pertenece a otro vendedor (discrepancia de ID).
+    *   **`403 Forbidden`**: El token no posee un preventista asociado o el pedido solicitado pertenece a otro preventista (discrepancia de ID).
         *   Cuerpo: `"No está autorizado a eliminar pedidos de otros vendedores."`
 
 ### D. Descargar Catálogo de Productos
 *   **Método / Ruta**: `GET /api/v1/orders/catalog`
 *   **Respuestas**:
-    *   **`200 OK`**: Retorna el catálogo oficial para sincronización en caché local del vendedor.
+    *   **`200 OK`**: Retorna el catálogo oficial para sincronización en caché local del preventista.
         ```json
         [
           {

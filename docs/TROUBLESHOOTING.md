@@ -89,7 +89,7 @@ Spring Boot muestra errores de conexión a base de datos (`Connection refused`) 
 ## 4. Cierre de Sesión Repentino al Utilizar Múltiples Dispositivos o Peticiones Concurrentes
 
 ### Síntoma
-Un vendedor es desconectado repentinamente de la aplicación móvil y forzado a iniciar sesión de nuevo, mostrando el error `token_revoked` en la consola o logs de red.
+Un preventista es desconectado repentinamente de la aplicación móvil y forzado a iniciar sesión de nuevo, mostrando el error `token_revoked` en la consola o logs de red.
 
 ### Causa
 Este comportamiento es el resultado del mecanismo de protección contra robo de tokens por **rotación de tokens de refresco (Theft Detection)**. 
