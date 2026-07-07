@@ -149,7 +149,7 @@ Estos endpoints son internos y expuestos para ser consumidos por el `sync-servic
     {
       "clientOrderId": "order-uuid-abc",
       "clientId": "Nombre Cliente",
-      "salespersonId": "VENDEDOR-001",
+      "salespersonId": "8b9e6f8a-cd62-4b6b-871d-551152a5a5ad",
       "createdAt": "2026-07-02T12:00:00",
       "totalAmount": 250.00,
       "items": [
@@ -163,16 +163,37 @@ Estos endpoints son internos y expuestos para ser consumidos por el `sync-servic
     ```
 *   **Respuestas**:
     *   **`201 Created`**: Pedido guardado y stock descontado exitosamente. Retorna la entidad guardada en PostgreSQL.
-    *   **`400 Bad Request`**: Datos inválidos, producto inexistente o stock disponible insuficiente.
-        *   Cuerpo: Mensaje de error descriptivo como `"Stock insuficiente para el producto: Bolsa Hielo Cubos 5kg. Stock disponible: 0, solicitado: 1"`.
+    *   **`400 Bad Request`**: Datos inválidos, producto inexistente, stock disponible insuficiente, o el peso del pedido no cumple con las reglas del negocio (peso mínimo de 100 kg o exceso del límite de 5.000 kg por camión/día).
+    *   **`403 Forbidden`**: El token no posee un vendedor asociado (`vendor_id` nulo) o el `salespersonId` enviado en la orden difiere del `vendor_id` del token JWT.
+        *   Cuerpo: `"No está autorizado a registrar o modificar pedidos para el distribuidor: ..."`
 
-### B. Eliminar un Pedido (y Revertir Stock)
+### B. Obtener un Pedido
+*   **Método / Ruta**: `GET /api/v1/orders/{orderId}`
+*   **Respuestas**:
+    *   **`200 OK`**: Retorna el pedido detallado.
+        ```json
+        {
+          "clientOrderId": "order-uuid-abc",
+          "clientId": "Nombre Cliente",
+          "salespersonId": "8b9e6f8a-cd62-4b6b-871d-551152a5a5ad",
+          "createdAt": "2026-07-02T12:00:00",
+          "totalAmount": 250.00,
+          "items": [...]
+        }
+        ```
+    *   **`403 Forbidden`**: El pedido solicitado pertenece a otro vendedor (`salespersonId` diferente al `vendor_id` del token) o el token no tiene vendedor asignado.
+        *   Cuerpo: `"No está autorizado a consultar pedidos de otros vendedores."`
+    *   **`404 Not Found`**: No existe ningún pedido con el ID provisto.
+
+### C. Eliminar un Pedido (y Revertir Stock)
 *   **Método / Ruta**: `DELETE /api/v1/orders/{orderId}`
 *   **Respuestas**:
     *   **`200 OK`**: El pedido se eliminó físicamente de PostgreSQL y el stock de los productos se incrementó de vuelta según las cantidades originales del pedido.
     *   **`400 Bad Request`**: No se encontró ningún pedido con el ID provisto.
+    *   **`403 Forbidden`**: El token no posee un vendedor asociado o el pedido solicitado pertenece a otro vendedor (discrepancia de ID).
+        *   Cuerpo: `"No está autorizado a eliminar pedidos de otros vendedores."`
 
-### C. Descargar Catálogo de Productos
+### D. Descargar Catálogo de Productos
 *   **Método / Ruta**: `GET /api/v1/orders/catalog`
 *   **Respuestas**:
     *   **`200 OK`**: Retorna el catálogo oficial para sincronización en caché local del vendedor.
@@ -182,13 +203,15 @@ Estos endpoints son internos y expuestos para ser consumidos por el `sync-servic
             "id": "PROD-ICE-001",
             "name": "Bolsa Hielo Cubos 2kg",
             "price": 120.00,
-            "stock": 500
+            "stock": 500,
+            "weightKg": 2.0
           },
           {
             "id": "PROD-ICE-002",
             "name": "Bolsa Hielo Cubos 5kg",
             "price": 250.00,
-            "stock": 300
+            "stock": 300,
+            "weightKg": 5.0
           }
         ]
         ```
