@@ -124,6 +124,29 @@ public class OrderController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @GetMapping
+    public ResponseEntity<?> getOrders(Authentication authentication) {
+        boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equalsIgnoreCase(a.getAuthority()));
+
+        if (isAdmin) {
+            return ResponseEntity.ok(orderRepository.findAll());
+        }
+
+        Optional<UUID> driverIdOpt = driverContext.get();
+        if (driverIdOpt.isPresent()) {
+            return ResponseEntity.ok(orderRepository.findByStatusOrDeliveryDriverId("PENDING", driverIdOpt.get()));
+        }
+
+        Optional<UUID> vendorIdOpt = vendorContext.get();
+        if (vendorIdOpt.isPresent()) {
+            return ResponseEntity.ok(orderRepository.findBySalespersonId(vendorIdOpt.get().toString()));
+        }
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body("No está autorizado a consultar el listado de pedidos.");
+    }
+
     @GetMapping("/catalog")
     public ResponseEntity<List<Product>> getCatalog() {
         return ResponseEntity.ok(productRepository.findAll());

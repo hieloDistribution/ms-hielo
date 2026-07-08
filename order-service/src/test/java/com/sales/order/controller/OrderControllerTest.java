@@ -171,4 +171,47 @@ class OrderControllerTest {
 
         verify(orderService, never()).deleteOrder(anyString());
     }
+
+    // --- GET ORDERS (LIST) TESTS ---
+
+    @Test
+    void getOrders_asVendor_returnsSalespersonOrders() throws Exception {
+        UUID vendorId = UUID.randomUUID();
+        vendorContext.set(Optional.of(vendorId));
+
+        Order order = new Order();
+        order.setSalespersonId(vendorId.toString());
+        when(orderRepository.findBySalespersonId(vendorId.toString())).thenReturn(java.util.List.of(order));
+
+        mvc.perform(get("/api/v1/orders"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].salespersonId").value(vendorId.toString()));
+
+        verify(orderRepository).findBySalespersonId(vendorId.toString());
+    }
+
+    @Test
+    void getOrders_asDriver_returnsPendingAndAssignedOrders() throws Exception {
+        UUID driverId = UUID.randomUUID();
+        driverContext.set(Optional.of(driverId));
+
+        Order order = new Order();
+        order.setStatus("PENDING");
+        when(orderRepository.findByStatusOrDeliveryDriverId("PENDING", driverId)).thenReturn(java.util.List.of(order));
+
+        mvc.perform(get("/api/v1/orders"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("PENDING"));
+
+        verify(orderRepository).findByStatusOrDeliveryDriverId("PENDING", driverId);
+    }
+
+    @Test
+    void getOrders_withoutSession_returns403Forbidden() throws Exception {
+        vendorContext.set(Optional.empty());
+        driverContext.set(Optional.empty());
+
+        mvc.perform(get("/api/v1/orders"))
+                .andExpect(status().isForbidden());
+    }
 }

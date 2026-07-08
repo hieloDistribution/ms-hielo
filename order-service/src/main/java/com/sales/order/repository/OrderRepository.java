@@ -19,4 +19,14 @@ public interface OrderRepository extends JpaRepository<Order, String> {
             @Param("salespersonId") String salespersonId, 
             @Param("startOfDay") LocalDateTime startOfDay
     );
+
+    java.util.List<Order> findBySalespersonId(String salespersonId);
+
+    java.util.List<Order> findByClientId(String clientId);
+
+    @Query("SELECT o FROM Order o WHERE o.deliveryDriver IS NOT NULL AND o.deliveryDriver.id = :driverId")
+    java.util.List<Order> findByDeliveryDriverId(@Param("driverId") java.util.UUID driverId);
+
+    @Query("SELECT o FROM Order o WHERE o.status = :status OR (o.deliveryDriver IS NOT NULL AND o.deliveryDriver.id = :driverId)")
+    java.util.List<Order> findByStatusOrDeliveryDriverId(@Param("status") String status, @Param("driverId") java.util.UUID driverId);
 }
