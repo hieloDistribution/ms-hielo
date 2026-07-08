@@ -1,5 +1,6 @@
 package com.sales.order.controller;
 
+import com.sales.order.auth.security.DriverContext;
 import com.sales.order.auth.security.VendorContext;
 import com.sales.order.model.Order;
 import com.sales.order.repository.OrderRepository;
@@ -28,6 +29,7 @@ class OrderControllerTest {
     private OrderRepository orderRepository;
     private ProductRepository productRepository;
     private VendorContext vendorContext;
+    private DriverContext driverContext;
 
     @BeforeEach
     void setUp() {
@@ -35,9 +37,10 @@ class OrderControllerTest {
         orderRepository = mock(OrderRepository.class);
         productRepository = mock(ProductRepository.class);
         vendorContext = new VendorContext();
+        driverContext = new DriverContext();
 
         mvc = MockMvcBuilders
-                .standaloneSetup(new OrderController(orderService, orderRepository, productRepository, vendorContext))
+                .standaloneSetup(new OrderController(orderService, orderRepository, productRepository, vendorContext, driverContext))
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
                 .build();
     }
