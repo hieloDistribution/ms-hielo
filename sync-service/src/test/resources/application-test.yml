@@ -9,6 +9,7 @@ spring:
   flyway:
     enabled: true
     clean-disabled: false                # *IT classes may call flyway.clean() in @AfterEach
+    clean-on-validation-error: true
 
 jwt:
   secret: test-secret-test-secret-test-secret-32+bytes    # 41 bytes, ≥32
