@@ -13,5 +13,5 @@ import java.util.UUID;
 @Repository
 public interface OfflineAuditRepository extends JpaRepository<OfflineAudit, UUID> {
 
-    List<OfflineAudit> findByRepartidorId(UUID repartidorId);
+    List<OfflineAudit> findByDriverId(UUID driverId);
 }

@@ -6,6 +6,38 @@
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- Crear tablas legado si no existen (necesario al iniciar en una BD vacía como Supabase)
+CREATE TABLE IF NOT EXISTS products (
+    id          varchar(50)   PRIMARY KEY,
+    name        varchar(255)  NOT NULL,
+    price       numeric(10,2) NOT NULL,
+    stock       int4          NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS orders (
+    client_order_id   varchar(36)   PRIMARY KEY,
+    client_id         varchar(50)   NOT NULL,
+    salesperson_id    varchar(50)   NOT NULL,
+    created_at        timestamp     NOT NULL,
+    total_amount      numeric(12,2) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS order_items (
+    id                bigserial     PRIMARY KEY,
+    client_order_id   varchar(36)   NOT NULL REFERENCES orders(client_order_id) ON DELETE CASCADE,
+    product_id        varchar(50)   NOT NULL,
+    quantity          int4          NOT NULL,
+    price             numeric(10,2) NOT NULL
+);
+
+-- Insertar productos semilla si no existen
+INSERT INTO products (id, name, price, stock) VALUES
+('PROD-ICE-001', 'Hielo Rolito 2kg', 150.00, 1000),
+('PROD-ICE-002', 'Hielo Rolito 5kg', 300.00, 500),
+('PROD-ICE-003', 'Hielo Rolito 10kg', 550.00, 300),
+('PROD-ICE-004', 'Hielo Escama 15kg', 750.00, 200)
+ON CONFLICT (id) DO NOTHING;
+
 CREATE TABLE clients (
     id          uuid          PRIMARY KEY DEFAULT gen_random_uuid(),
     name        varchar(255)  NOT NULL,

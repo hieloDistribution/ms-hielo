@@ -52,7 +52,7 @@ public class SecurityConfig {
             @org.springframework.beans.factory.annotation.Value("${security.cors.allowed-origins}")
             List<String> origins) {
         CorsConfiguration cfg = new CorsConfiguration();
-        cfg.setAllowedOrigins(origins);
+        cfg.setAllowedOriginPatterns(origins);
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         cfg.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         cfg.setExposedHeaders(List.of("Authorization"));

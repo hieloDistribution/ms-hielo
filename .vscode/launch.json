@@ -1,0 +1,33 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "SyncServiceApplication",
+            "request": "launch",
+            "mainClass": "com.sales.sync.SyncServiceApplication",
+            "projectName": "sync-service",
+            "env": {
+                "SPRING_DATASOURCE_URL": "jdbc:postgresql://aws-1-us-east-1.pooler.supabase.com:6543/sync_db?sslmode=require",
+                "SPRING_DATASOURCE_USERNAME": "postgres.jnuxrngmqujxkiilrjww",
+                "SPRING_DATASOURCE_PASSWORD": "vzeLLKNZy2QOATAG",
+                "SPRING_FLYWAY_ENABLED": "true",
+                "JWT_SECRET": "test-secret-test-secret-test-secret-32+bytes"
+            }
+        },
+        {
+            "type": "java",
+            "name": "OrderServiceApplication",
+            "request": "launch",
+            "mainClass": "com.sales.order.OrderServiceApplication",
+            "projectName": "order-service",
+            "env": {
+                "SPRING_DATASOURCE_URL": "jdbc:postgresql://aws-1-us-east-1.pooler.supabase.com:6543/order_db?sslmode=require",
+                "SPRING_DATASOURCE_USERNAME": "postgres.jnuxrngmqujxkiilrjww",
+                "SPRING_DATASOURCE_PASSWORD": "vzeLLKNZy2QOATAG",
+                "SPRING_FLYWAY_ENABLED": "true",
+                "JWT_SECRET": "test-secret-test-secret-test-secret-32+bytes"
+            }
+        }
+    ]
+}

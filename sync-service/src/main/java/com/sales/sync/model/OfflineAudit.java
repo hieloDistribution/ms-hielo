@@ -10,8 +10,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * {@code OfflineAudit} — entidad para registrar las auditorías de desconexión offline
- * de los repartidores.
+ * {@code OfflineAudit} — Entity to record offline disconnected audits
+ * for delivery drivers.
  */
 @Entity
 @Table(name = "offline_audits")
@@ -21,8 +21,8 @@ public class OfflineAudit {
     @Column(name = "id")
     private UUID id;
 
-    @Column(name = "repartidor_id", nullable = false)
-    private UUID repartidorId;
+    @Column(name = "driver_id", nullable = false)
+    private UUID driverId;
 
     @Column(name = "disconnected_at", nullable = false)
     private Instant disconnectedAt;
@@ -36,8 +36,8 @@ public class OfflineAudit {
     public OfflineAudit() {
     }
 
-    public OfflineAudit(UUID repartidorId, Instant disconnectedAt, Instant reconnectedAt, Integer durationMinutes) {
-        this.repartidorId = repartidorId;
+    public OfflineAudit(UUID driverId, Instant disconnectedAt, Instant reconnectedAt, Integer durationMinutes) {
+        this.driverId = driverId;
         this.disconnectedAt = disconnectedAt;
         this.reconnectedAt = reconnectedAt;
         this.durationMinutes = durationMinutes;
@@ -58,12 +58,12 @@ public class OfflineAudit {
         this.id = id;
     }
 
-    public UUID getRepartidorId() {
-        return repartidorId;
+    public UUID getDriverId() {
+        return driverId;
     }
 
-    public void setRepartidorId(UUID repartidorId) {
-        this.repartidorId = repartidorId;
+    public void setDriverId(UUID driverId) {
+        this.driverId = driverId;
     }
 
     public Instant getDisconnectedAt() {
