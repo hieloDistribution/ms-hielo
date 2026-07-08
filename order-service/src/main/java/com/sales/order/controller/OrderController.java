@@ -1,5 +1,6 @@
 package com.sales.order.controller;
 
+import com.sales.order.auth.security.DriverContext;
 import com.sales.order.auth.security.VendorContext;
 import com.sales.order.model.Order;
 import com.sales.order.model.Product;
@@ -23,15 +24,18 @@ public class OrderController {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final VendorContext vendorContext;
+    private final DriverContext driverContext;
 
     public OrderController(OrderService orderService,
                            OrderRepository orderRepository,
                            ProductRepository productRepository,
-                           VendorContext vendorContext) {
+                           VendorContext vendorContext,
+                           DriverContext driverContext) {
         this.orderService = orderService;
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
         this.vendorContext = vendorContext;
+        this.driverContext = driverContext;
     }
 
     @PostMapping
@@ -102,5 +106,110 @@ public class OrderController {
     @GetMapping("/catalog")
     public ResponseEntity<List<Product>> getCatalog() {
         return ResponseEntity.ok(productRepository.findAll());
+    }
+
+    @PostMapping("/{orderId}/accept")
+    public ResponseEntity<?> acceptOrder(@PathVariable String orderId) {
+        try {
+            Optional<UUID> driverIdOpt = driverContext.get();
+            if (driverIdOpt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("No está autorizado a aceptar entregas: esta cuenta no está asociada a ningún repartidor.");
+            }
+            Order acceptedOrder = orderService.acceptOrder(orderId, driverIdOpt.get());
+            return ResponseEntity.ok(acceptedOrder);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error interno: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/{orderId}/dispatch")
+    public ResponseEntity<?> dispatchOrder(@PathVariable String orderId) {
+        try {
+            Optional<UUID> vendorIdOpt = vendorContext.get();
+            if (vendorIdOpt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("No está autorizado a despachar pedidos: esta cuenta no está asociada a ningún vendedor.");
+            }
+
+            Optional<Order> existingOrderOpt = orderRepository.findById(orderId);
+            if (existingOrderOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+            Order existingOrder = existingOrderOpt.get();
+
+            if (!vendorIdOpt.get().toString().equalsIgnoreCase(existingOrder.getSalespersonId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("No está autorizado a despachar pedidos de otros vendedores.");
+            }
+
+            Order dispatchedOrder = orderService.dispatchOrder(orderId);
+            return ResponseEntity.ok(dispatchedOrder);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error interno: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/{orderId}/deliver")
+    public ResponseEntity<?> deliverOrder(@PathVariable String orderId, @RequestParam String code) {
+        try {
+            Optional<UUID> driverIdOpt = driverContext.get();
+            if (driverIdOpt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("No está autorizado a realizar entregas: esta cuenta no está asociada a ningún repartidor.");
+            }
+
+            Optional<Order> existingOrderOpt = orderRepository.findById(orderId);
+            if (existingOrderOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+            Order existingOrder = existingOrderOpt.get();
+
+            if (existingOrder.getDeliveryDriver() == null || 
+                !driverIdOpt.get().equals(existingOrder.getDeliveryDriver().getId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("No está autorizado a entregar este pedido porque no le está asignado.");
+            }
+
+            Order deliveredOrder = orderService.deliverOrder(orderId, code);
+            return ResponseEntity.ok(deliveredOrder);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error interno: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/{orderId}/cancel")
+    public ResponseEntity<?> cancelOrder(@PathVariable String orderId) {
+        try {
+            Optional<UUID> vendorIdOpt = vendorContext.get();
+            if (vendorIdOpt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("No está autorizado a cancelar pedidos.");
+            }
+
+            Optional<Order> existingOrderOpt = orderRepository.findById(orderId);
+            if (existingOrderOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+            Order existingOrder = existingOrderOpt.get();
+
+            if (!vendorIdOpt.get().toString().equalsIgnoreCase(existingOrder.getSalespersonId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("No está autorizado a cancelar pedidos de otros vendedores.");
+            }
+
+            Order cancelledOrder = orderService.cancelOrder(orderId);
+            return ResponseEntity.ok(cancelledOrder);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error interno: " + e.getMessage());
+        }
     }
 }
