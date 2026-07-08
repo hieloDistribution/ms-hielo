@@ -10,8 +10,10 @@ import com.sales.order.service.OrderService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,16 +41,21 @@ public class OrderController {
     }
 
     @PostMapping
-    public ResponseEntity<?> createOrUpdateOrder(@RequestBody @Valid Order order) {
+    public ResponseEntity<?> createOrUpdateOrder(@RequestBody @Valid Order order, Authentication authentication) {
         try {
-            Optional<UUID> authenticatedVendorId = vendorContext.get();
-            if (authenticatedVendorId.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body("No está autorizado a realizar pedidos: esta cuenta no está asociada a ningún vendedor.");
-            }
-            if (!authenticatedVendorId.get().toString().equalsIgnoreCase(order.getSalespersonId())) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body("No está autorizado a registrar o modificar pedidos para el distribuidor: " + order.getSalespersonId());
+            boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
+                    .anyMatch(a -> "ROLE_ADMIN".equalsIgnoreCase(a.getAuthority()));
+
+            if (!isAdmin) {
+                Optional<UUID> authenticatedVendorId = vendorContext.get();
+                if (authenticatedVendorId.isEmpty()) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body("No está autorizado a realizar pedidos: esta cuenta no está asociada a ningún vendedor.");
+                }
+                if (!authenticatedVendorId.get().toString().equalsIgnoreCase(order.getSalespersonId())) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body("No está autorizado a registrar o modificar pedidos para el distribuidor: " + order.getSalespersonId());
+                }
             }
 
             Order savedOrder = orderService.saveOrder(order);
@@ -61,18 +68,23 @@ public class OrderController {
     }
 
     @DeleteMapping("/{orderId}")
-    public ResponseEntity<?> deleteOrder(@PathVariable String orderId) {
+    public ResponseEntity<?> deleteOrder(@PathVariable String orderId, Authentication authentication) {
         try {
-            Optional<UUID> authenticatedVendorId = vendorContext.get();
-            if (authenticatedVendorId.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body("No está autorizado a eliminar pedidos.");
-            }
+            boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
+                    .anyMatch(a -> "ROLE_ADMIN".equalsIgnoreCase(a.getAuthority()));
 
-            Optional<Order> existingOrder = orderRepository.findById(orderId);
-            if (existingOrder.isPresent() && !authenticatedVendorId.get().toString().equalsIgnoreCase(existingOrder.get().getSalespersonId())) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body("No está autorizado a eliminar pedidos de otros vendedores.");
+            if (!isAdmin) {
+                Optional<UUID> authenticatedVendorId = vendorContext.get();
+                if (authenticatedVendorId.isEmpty()) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body("No está autorizado a eliminar pedidos.");
+                }
+
+                Optional<Order> existingOrder = orderRepository.findById(orderId);
+                if (existingOrder.isPresent() && !authenticatedVendorId.get().toString().equalsIgnoreCase(existingOrder.get().getSalespersonId())) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body("No está autorizado a eliminar pedidos de otros vendedores.");
+                }
             }
 
             orderService.deleteOrder(orderId);
@@ -84,19 +96,28 @@ public class OrderController {
         }
     }
 
+    @SuppressWarnings("Convert2MethodRef")
     @GetMapping("/{orderId}")
-    public ResponseEntity<?> getOrder(@PathVariable String orderId) {
-        Optional<UUID> authenticatedVendorId = vendorContext.get();
-        if (authenticatedVendorId.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body("No está autorizado a consultar pedidos.");
+    public ResponseEntity<?> getOrder(@PathVariable String orderId, Authentication authentication) {
+        boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equalsIgnoreCase(a.getAuthority()));
+
+        if (!isAdmin) {
+            Optional<UUID> authenticatedVendorId = vendorContext.get();
+            if (authenticatedVendorId.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("No está autorizado a consultar pedidos.");
+            }
         }
 
         return orderRepository.findById(orderId)
                 .map(order -> {
-                    if (!authenticatedVendorId.get().toString().equalsIgnoreCase(order.getSalespersonId())) {
-                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                                .body("No está autorizado a consultar pedidos de otros vendedores.");
+                    if (!isAdmin) {
+                        Optional<UUID> authenticatedVendorId = vendorContext.get();
+                        if (!authenticatedVendorId.get().toString().equalsIgnoreCase(order.getSalespersonId())) {
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                    .body("No está autorizado a consultar pedidos de otros vendedores.");
+                        }
                     }
                     return ResponseEntity.ok(order);
                 })
@@ -126,12 +147,17 @@ public class OrderController {
     }
 
     @PostMapping("/{orderId}/dispatch")
-    public ResponseEntity<?> dispatchOrder(@PathVariable String orderId) {
+    public ResponseEntity<?> dispatchOrder(@PathVariable String orderId, Authentication authentication) {
         try {
-            Optional<UUID> vendorIdOpt = vendorContext.get();
-            if (vendorIdOpt.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body("No está autorizado a despachar pedidos: esta cuenta no está asociada a ningún vendedor.");
+            boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
+                    .anyMatch(a -> "ROLE_ADMIN".equalsIgnoreCase(a.getAuthority()));
+
+            if (!isAdmin) {
+                Optional<UUID> vendorIdOpt = vendorContext.get();
+                if (vendorIdOpt.isEmpty()) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body("No está autorizado a despachar pedidos: esta cuenta no está asociada a ningún vendedor.");
+                }
             }
 
             Optional<Order> existingOrderOpt = orderRepository.findById(orderId);
@@ -140,9 +166,12 @@ public class OrderController {
             }
             Order existingOrder = existingOrderOpt.get();
 
-            if (!vendorIdOpt.get().toString().equalsIgnoreCase(existingOrder.getSalespersonId())) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body("No está autorizado a despachar pedidos de otros vendedores.");
+            if (!isAdmin) {
+                Optional<UUID> vendorIdOpt = vendorContext.get();
+                if (!vendorIdOpt.get().toString().equalsIgnoreCase(existingOrder.getSalespersonId())) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body("No está autorizado a despachar pedidos de otros vendedores.");
+                }
             }
 
             Order dispatchedOrder = orderService.dispatchOrder(orderId);
@@ -155,7 +184,10 @@ public class OrderController {
     }
 
     @PostMapping("/{orderId}/deliver")
-    public ResponseEntity<?> deliverOrder(@PathVariable String orderId, @RequestParam String code) {
+    public ResponseEntity<?> deliverOrder(@PathVariable String orderId, 
+                                          @RequestParam String code,
+                                          @RequestParam(required = false) BigDecimal lat,
+                                          @RequestParam(required = false) BigDecimal lon) {
         try {
             Optional<UUID> driverIdOpt = driverContext.get();
             if (driverIdOpt.isEmpty()) {
@@ -175,7 +207,7 @@ public class OrderController {
                         .body("No está autorizado a entregar este pedido porque no le está asignado.");
             }
 
-            Order deliveredOrder = orderService.deliverOrder(orderId, code);
+            Order deliveredOrder = orderService.deliverOrder(orderId, code, lat, lon);
             return ResponseEntity.ok(deliveredOrder);
         } catch (IllegalArgumentException | IllegalStateException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -185,12 +217,17 @@ public class OrderController {
     }
 
     @PostMapping("/{orderId}/cancel")
-    public ResponseEntity<?> cancelOrder(@PathVariable String orderId) {
+    public ResponseEntity<?> cancelOrder(@PathVariable String orderId, Authentication authentication) {
         try {
-            Optional<UUID> vendorIdOpt = vendorContext.get();
-            if (vendorIdOpt.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body("No está autorizado a cancelar pedidos.");
+            boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
+                    .anyMatch(a -> "ROLE_ADMIN".equalsIgnoreCase(a.getAuthority()));
+
+            if (!isAdmin) {
+                Optional<UUID> vendorIdOpt = vendorContext.get();
+                if (vendorIdOpt.isEmpty()) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body("No está autorizado a cancelar pedidos.");
+                }
             }
 
             Optional<Order> existingOrderOpt = orderRepository.findById(orderId);
@@ -199,9 +236,12 @@ public class OrderController {
             }
             Order existingOrder = existingOrderOpt.get();
 
-            if (!vendorIdOpt.get().toString().equalsIgnoreCase(existingOrder.getSalespersonId())) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body("No está autorizado a cancelar pedidos de otros vendedores.");
+            if (!isAdmin) {
+                Optional<UUID> vendorIdOpt = vendorContext.get();
+                if (!vendorIdOpt.get().toString().equalsIgnoreCase(existingOrder.getSalespersonId())) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body("No está autorizado a cancelar pedidos de otros vendedores.");
+                }
             }
 
             Order cancelledOrder = orderService.cancelOrder(orderId);

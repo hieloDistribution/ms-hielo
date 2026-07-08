@@ -46,10 +46,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = header.substring(PREFIX.length()).trim();
             try {
                 JwtService.ParsedToken parsed = jwtService.parse(token);
+                var authorities = new java.util.ArrayList<SimpleGrantedAuthority>();
+                authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+                if ("admin".equalsIgnoreCase(parsed.role()) || "ADMIN".equalsIgnoreCase(parsed.role())) {
+                    authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+                }
                 var auth = new UsernamePasswordAuthenticationToken(
                         parsed.userId(),
                         null,
-                        List.of(new SimpleGrantedAuthority("ROLE_USER")));
+                        authorities);
                 SecurityContextHolder.getContext().setAuthentication(auth);
                 vendorContext.set(Optional.ofNullable(parsed.vendorId()));
                 driverContext.set(Optional.ofNullable(parsed.vendorId()));
