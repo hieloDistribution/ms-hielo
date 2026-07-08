@@ -1,8 +1,10 @@
 package com.sales.order.service;
 
+import com.sales.order.model.DeliveryDriver;
 import com.sales.order.model.Order;
 import com.sales.order.model.OrderItem;
 import com.sales.order.model.Product;
+import com.sales.order.repository.DeliveryDriverRepository;
 import com.sales.order.repository.OrderRepository;
 import com.sales.order.repository.ProductRepository;
 import org.slf4j.Logger;
@@ -10,9 +12,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.Random;
+import java.util.UUID;
 
 @Service
 public class OrderService {
@@ -23,10 +28,15 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
+    private final DeliveryDriverRepository deliveryDriverRepository;
+    private final Random random = new Random();
 
-    public OrderService(OrderRepository orderRepository, ProductRepository productRepository) {
+    public OrderService(OrderRepository orderRepository, 
+                        ProductRepository productRepository,
+                        DeliveryDriverRepository deliveryDriverRepository) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
+        this.deliveryDriverRepository = deliveryDriverRepository;
     }
 
     /**
@@ -97,6 +107,97 @@ public class OrderService {
         }
 
         // 7. Guardar pedido en PostgreSQL
+        return orderRepository.save(order);
+    }
+
+    /**
+     * Asigna un repartidor a un pedido y marca el pedido como ACEPTADO.
+     */
+    @Transactional
+    public Order acceptOrder(String orderId, UUID driverId) {
+        log.info("Repartidor {} intenta aceptar el pedido {}", driverId, orderId);
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("No se encontró el pedido con id: " + orderId));
+        
+        DeliveryDriver driver = deliveryDriverRepository.findById(driverId)
+                .orElseThrow(() -> new IllegalArgumentException("No se encontró el repartidor con id: " + driverId));
+
+        if (!"PENDING".equalsIgnoreCase(order.getStatus())) {
+            throw new IllegalStateException("El pedido no se puede aceptar porque su estado actual es: " + order.getStatus());
+        }
+
+        order.setDeliveryDriver(driver);
+        order.setStatus("ACCEPTED");
+        order.setAcceptedAt(Instant.now());
+        
+        return orderRepository.save(order);
+    }
+
+    /**
+     * Despacha el pedido generando el código de verificación (OTP) de 4 dígitos.
+     */
+    @Transactional
+    public Order dispatchOrder(String orderId) {
+        log.info("Despachando pedido: {}", orderId);
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("No se encontró el pedido con id: " + orderId));
+
+        if (!"ACCEPTED".equalsIgnoreCase(order.getStatus()) && !"PENDING".equalsIgnoreCase(order.getStatus())) {
+            throw new IllegalStateException("El pedido no se puede despachar en su estado actual: " + order.getStatus());
+        }
+
+        // Generar OTP de 4 dígitos
+        String code = String.format("%04d", random.nextInt(10000));
+        order.setVerificationCode(code);
+        order.setStatus("DISPATCHED");
+        
+        log.info("Pedido {} despachado. Código OTP generado: {}", orderId, code);
+        return orderRepository.save(order);
+    }
+
+    /**
+     * Finaliza la entrega del pedido validando el código de verificación (OTP).
+     */
+    @Transactional
+    public Order deliverOrder(String orderId, String code) {
+        log.info("Intentando entregar pedido {} con código OTP: {}", orderId, code);
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("No se encontró el pedido con id: " + orderId));
+
+        if (!"DISPATCHED".equalsIgnoreCase(order.getStatus())) {
+            throw new IllegalStateException("El pedido no está despachado. Estado actual: " + order.getStatus());
+        }
+
+        if (order.getVerificationCode() == null || !order.getVerificationCode().equals(code)) {
+            throw new IllegalArgumentException("El código de verificación ingresado es incorrecto.");
+        }
+
+        order.setStatus("DELIVERED");
+        order.setDeliveredAt(Instant.now());
+        
+        log.info("Pedido {} entregado exitosamente.", orderId);
+        return orderRepository.save(order);
+    }
+
+    /**
+     * Cancela un pedido y devuelve las cantidades al stock.
+     */
+    @Transactional
+    public Order cancelOrder(String orderId) {
+        log.info("Cancelando pedido: {}", orderId);
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("No se encontró el pedido con id: " + orderId));
+
+        if ("DELIVERED".equalsIgnoreCase(order.getStatus())) {
+            throw new IllegalStateException("No se puede cancelar un pedido que ya ha sido entregado.");
+        }
+        
+        if ("CANCELLED".equalsIgnoreCase(order.getStatus())) {
+            return order;
+        }
+
+        revertStock(order);
+        order.setStatus("CANCELLED");
         return orderRepository.save(order);
     }
 
