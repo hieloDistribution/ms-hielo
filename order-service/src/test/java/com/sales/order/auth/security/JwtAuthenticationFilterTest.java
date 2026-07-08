@@ -23,13 +23,15 @@ class JwtAuthenticationFilterTest {
 
     private JwtService jwtService;
     private VendorContext vendorContext;
+    private DriverContext driverContext;
     private JwtAuthenticationFilter filter;
 
     @BeforeEach
     void setUp() {
         jwtService = mock(JwtService.class);
         vendorContext = new VendorContext();
-        filter = new JwtAuthenticationFilter(jwtService, vendorContext);
+        driverContext = new DriverContext();
+        filter = new JwtAuthenticationFilter(jwtService, vendorContext, driverContext);
         SecurityContextHolder.clearContext();
     }
 
@@ -49,6 +51,7 @@ class JwtAuthenticationFilterTest {
         verify(chain).doFilter(req, res);
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
         assertThat(vendorContext.get()).isEmpty();
+        assertThat(driverContext.get()).isEmpty();
     }
 
     @Test
@@ -63,12 +66,15 @@ class JwtAuthenticationFilterTest {
         MockHttpServletResponse res = new MockHttpServletResponse();
 
         // Capture the state observed inside the chain, before the filter's
-        // finally block resets VendorContext to Optional.empty().
+        // finally block resets VendorContext and DriverContext to Optional.empty().
         final VendorContext ctxRef = vendorContext;
+        final DriverContext driverCtxRef = driverContext;
         final var capturedVendorId = new java.util.concurrent.atomic.AtomicReference<Optional<UUID>>();
+        final var capturedDriverId = new java.util.concurrent.atomic.AtomicReference<Optional<UUID>>();
         final var capturedAuth = new java.util.concurrent.atomic.AtomicReference<org.springframework.security.core.Authentication>();
         FilterChain chain = (request, response) -> {
             capturedVendorId.set(ctxRef.get());
+            capturedDriverId.set(driverCtxRef.get());
             capturedAuth.set(SecurityContextHolder.getContext().getAuthentication());
         };
 
@@ -77,6 +83,7 @@ class JwtAuthenticationFilterTest {
         assertThat(capturedAuth.get()).isNotNull();
         assertThat(capturedAuth.get().getPrincipal()).isEqualTo(userId);
         assertThat(capturedVendorId.get()).contains(vendorId);
+        assertThat(capturedDriverId.get()).contains(vendorId);
     }
 
     @Test
@@ -93,6 +100,7 @@ class JwtAuthenticationFilterTest {
 
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
         assertThat(vendorContext.get()).isEmpty();
+        assertThat(driverContext.get()).isEmpty();
         verify(chain).doFilter(req, res);
     }
 

@@ -18,9 +18,7 @@ import java.util.Optional;
  * Reads {@code Authorization: Bearer <token>}, validates it via
  * {@link JwtService}, populates the {@link SecurityContextHolder} and
  * stashes the {@code vendor_id} claim into the request-scoped
- * {@link VendorContext}. On any token failure the filter is silent: the
- * downstream {@code AuthorizationFilter} then denies the protected path
- * and the configured authentication entry point emits the JSON 401.
+ * {@link VendorContext} and {@link DriverContext}. On any token failure the filter is silent.
  */
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -30,10 +28,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final VendorContext vendorContext;
+    private final DriverContext driverContext;
 
-    public JwtAuthenticationFilter(JwtService jwtService, VendorContext vendorContext) {
+    public JwtAuthenticationFilter(JwtService jwtService, VendorContext vendorContext, DriverContext driverContext) {
         this.jwtService = jwtService;
         this.vendorContext = vendorContext;
+        this.driverContext = driverContext;
     }
 
     @Override
@@ -52,11 +52,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         List.of(new SimpleGrantedAuthority("ROLE_USER")));
                 SecurityContextHolder.getContext().setAuthentication(auth);
                 vendorContext.set(Optional.ofNullable(parsed.vendorId()));
+                driverContext.set(Optional.ofNullable(parsed.vendorId()));
             } catch (TokenInvalidException | TokenExpiredException ex) {
                 // Don't write a response here; let AuthorizationFilter deny
                 // and the entry point emit the canonical 401 body.
                 SecurityContextHolder.clearContext();
                 vendorContext.set(Optional.empty());
+                driverContext.set(Optional.empty());
             }
         }
         try {
@@ -65,6 +67,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // Defensive clear; @RequestScope would also clear, but explicit
             // is safer when filters are reused across requests.
             vendorContext.set(Optional.empty());
+            driverContext.set(Optional.empty());
         }
     }
 }

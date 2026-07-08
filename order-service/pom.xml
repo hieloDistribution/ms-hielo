@@ -94,6 +94,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
+                    <argLine>-XX:+EnableDynamicAgentLoading -Dnet.bytebuddy.experimental=true</argLine>
                     <!-- Inject jwt.secret into the test JVM as a System property so
                          the JwtSecretEnvironmentPostProcessor (which runs before
                          application-test.yml is read) sees a non-empty value. -->
@@ -106,6 +107,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <configuration>
+                    <argLine>-XX:+EnableDynamicAgentLoading -Dnet.bytebuddy.experimental=true</argLine>
                     <systemPropertyVariables>
                         <jwt.secret>test-secret-test-secret-test-secret-32+bytes</jwt.secret>
                     </systemPropertyVariables>
