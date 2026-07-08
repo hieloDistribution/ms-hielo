@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -122,6 +123,10 @@ public class OrderService {
         DeliveryDriver driver = deliveryDriverRepository.findById(driverId)
                 .orElseThrow(() -> new IllegalArgumentException("No se encontró el repartidor con id: " + driverId));
 
+        if (driver.getActive() == null || !driver.getActive()) {
+            throw new IllegalStateException("El repartidor con id " + driverId + " no se encuentra activo.");
+        }
+
         if (!"PENDING".equalsIgnoreCase(order.getStatus())) {
             throw new IllegalStateException("El pedido no se puede aceptar porque su estado actual es: " + order.getStatus());
         }
@@ -159,8 +164,8 @@ public class OrderService {
      * Finaliza la entrega del pedido validando el código de verificación (OTP).
      */
     @Transactional
-    public Order deliverOrder(String orderId, String code) {
-        log.info("Intentando entregar pedido {} con código OTP: {}", orderId, code);
+    public Order deliverOrder(String orderId, String code, BigDecimal driverLat, BigDecimal driverLon) {
+        log.info("Intentando entregar pedido {} con código OTP: {} y ubicación: Lat={}, Lon={}", orderId, code, driverLat, driverLon);
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("No se encontró el pedido con id: " + orderId));
 
@@ -170,6 +175,24 @@ public class OrderService {
 
         if (order.getVerificationCode() == null || !order.getVerificationCode().equals(code)) {
             throw new IllegalArgumentException("El código de verificación ingresado es incorrecto.");
+        }
+
+        // Validación de Geocerca (Geofencing) - 100 metros
+        if (order.getDeliveryLatitude() != null && order.getDeliveryLongitude() != null) {
+            if (driverLat == null || driverLon == null) {
+                throw new IllegalArgumentException("Se requiere la ubicación GPS del repartidor para validar la geocerca de entrega.");
+            }
+            double distance = calculateDistanceInMeters(
+                    order.getDeliveryLatitude().doubleValue(),
+                    order.getDeliveryLongitude().doubleValue(),
+                    driverLat.doubleValue(),
+                    driverLon.doubleValue()
+            );
+            log.info("Distancia calculada al punto de entrega: {} metros", distance);
+            if (distance > 100.0) {
+                throw new IllegalArgumentException("El repartidor se encuentra demasiado lejos del punto de entrega (Distancia: " 
+                        + String.format("%.2f", distance) + " metros. Límite: 100 metros).");
+            }
         }
 
         order.setStatus("DELIVERED");
@@ -231,5 +254,19 @@ public class OrderService {
                 log.info("Stock revertido para producto {}: +{}", product.getId(), item.getQuantity());
             }
         }
+    }
+
+    /**
+     * Calcula la distancia en metros entre dos coordenadas geográficas utilizando la fórmula de Haversine.
+     */
+    private double calculateDistanceInMeters(double lat1, double lon1, double lat2, double lon2) {
+        double earthRadius = 6371000; // Radio de la Tierra en metros
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                   Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                   Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return earthRadius * c;
     }
 }

@@ -55,11 +55,12 @@ public class JwtService {
             UUID vendorId = Optional.ofNullable(c.getStringClaim("vendor_id"))
                     .map(UUID::fromString)
                     .orElse(null);
-            return new ParsedToken(userId, vendorId);
+            String role = c.getStringClaim("role");
+            return new ParsedToken(userId, vendorId, role);
         } catch (ParseException | JOSEException e) {
             throw new TokenInvalidException("JWT parse failure: " + e.getMessage());
         }
     }
 
-    public record ParsedToken(UUID userId, UUID vendorId) {}
+    public record ParsedToken(UUID userId, UUID vendorId, String role) {}
 }
