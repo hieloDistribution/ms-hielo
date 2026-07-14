@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 8081
   forward-headers-strategy: framework
 
 spring:
@@ -15,6 +15,8 @@ spring:
     open-in-view: false
     properties:
       hibernate.jdbc.time_zone: UTC
+      hibernate.format_sql: true
+    show-sql: true                     # dev logging; set false in prod
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -49,14 +51,16 @@ hielo:
   sync:
     auth:
       # Validator for incoming HTTP at sync-service /internal/** (used by the bearer-token filter).
-      internal-service-token: ${SYNC_SERVICE_TOKEN:dev-shared-secret-change-me}
+      # No default: a missing SYNC_SERVICE_TOKEN env var makes the app fail fast on startup
+      # instead of booting with a publicly-known placeholder.
+      internal-service-token: ${SYNC_SERVICE_TOKEN:}
   order:
     internal:
       # Outbound client from sync-service → order-service /internal/vendors/by-user/{userId}.
       base-url: ${ORDER_SERVICE_URL:http://localhost:8082}            # order-service actual port (props override yml → 8082)
       connect-timeout: 1s                                            # D-14
       read-timeout: 2s                                               # D-14
-      service-token: ${SYNC_SERVICE_TOKEN:dev-shared-secret-change-me}  # R-3 same shared secret
+      service-token: ${SYNC_SERVICE_TOKEN:}                          # R-3 same shared secret; no default (see comment above)
 
 auth:
   cleanup:

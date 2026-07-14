@@ -1,5 +1,5 @@
 server:
-  port: 8081
+  port: 8082
   forward-headers-strategy: framework
 
 spring:
@@ -25,6 +25,8 @@ spring:
     open-in-view: false
     properties:
       hibernate.jdbc.time_zone: UTC
+      hibernate.format_sql: true
+    show-sql: true                     # dev logging; set false in prod
 
 jwt:
   secret: ${JWT_SECRET:}
@@ -46,5 +48,5 @@ hielo:
       base-url: ${SYNC_SERVICE_URL:http://localhost:8081}          # sync-service (props override yml → 8081)
       connect-timeout: 1s                                          # D-14
       read-timeout: 2s                                             # D-14 — combined budget 3s
-      service-token: ${SYNC_SERVICE_TOKEN:dev-shared-secret-change-me}  # R-3
+      service-token: ${SYNC_SERVICE_TOKEN:}                        # R-3; no default (fail-fast on missing env)
       enabled: true                                                # set false + stub in tests if needed

@@ -17,7 +17,7 @@ import java.time.Duration;
  *       base-url: http://localhost:8082          # order-service actual port
  *       connect-timeout: 1s
  *       read-timeout: 2s
- *       service-token: ${SYNC_SERVICE_TOKEN:dev-shared-secret-change-me}  # R-3
+ *       service-token: ${SYNC_SERVICE_TOKEN:}    # R-3; no default (fail-fast on missing env)
  * </pre>
  */
 @ConfigurationProperties(prefix = "hielo.order.internal")
@@ -26,7 +26,9 @@ public class OrderInternalProperties {
     private String baseUrl = "http://localhost:8082";
     private Duration connectTimeout = Duration.ofSeconds(1);
     private Duration readTimeout = Duration.ofSeconds(2);
-    private String serviceToken = "dev-shared-secret-change-me";
+    // No default for serviceToken — yml binds ${SYNC_SERVICE_TOKEN:}; a missing env
+    // var leaves the field null/empty and inter-service auth fails closed.
+    private String serviceToken;
 
     public String getBaseUrl() { return baseUrl; }
     public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }

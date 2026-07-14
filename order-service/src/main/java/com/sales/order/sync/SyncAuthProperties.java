@@ -14,7 +14,7 @@ import java.time.Duration;
  *       base-url: http://localhost:8081       # sync-service (props override yml → 8081)
  *       connect-timeout: 1s                    # D-14
  *       read-timeout: 2s                       # D-14 — combined budget 3s
- *       service-token: ${SYNC_SERVICE_TOKEN:dev-shared-secret-change-me}  # R-3
+ *       service-token: ${SYNC_SERVICE_TOKEN:}  # R-3; no default (fail-fast on missing env)
  *       enabled: true                          # set false in tests to stub
  * </pre>
  */
@@ -24,7 +24,10 @@ public class SyncAuthProperties {
     private String baseUrl = "http://localhost:8081";
     private Duration connectTimeout = Duration.ofSeconds(1);
     private Duration readTimeout = Duration.ofSeconds(2);
-    private String serviceToken = "dev-shared-secret-change-me";
+    // No default for serviceToken — the yml binds ${SYNC_SERVICE_TOKEN:}; a missing
+    // env var leaves the field null/empty, which causes inter-service auth to fail
+    // (no default fallback that would let a publicly-known placeholder through).
+    private String serviceToken;
     /** When false, the bean wiring still loads but consumes {@link #serviceToken} = "" */
     private boolean enabled = true;
 
