@@ -30,6 +30,13 @@ jwt:
   issuer: hielo-sync
   audience: hielo-order
 
+# Legacy placeholder read by SyncService.@Value; the typed equivalent is
+# OrderInternalProperties.baseUrl (used by the /internal/** RestClient).
+# Kept here to avoid touching the legacy sync flow; consolidate in a follow-up.
+order:
+  service:
+    url: ${ORDER_SERVICE_URL:http://localhost:8082}
+
 security:
   bcrypt-cost: ${BCRYPT_COST:12}
   cors:
