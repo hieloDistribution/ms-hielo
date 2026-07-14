@@ -31,10 +31,12 @@ import java.util.List;
  * order-service (PR-2b reverse direction).
  *
  * <p>Authentication: static bearer service-token validated against
- * {@code hielo.order.internal.internal-service-token} (defaults to
- * {@code SYNC_SERVICE_TOKEN} / {@code dev-shared-secret-change-me}). On a
- * valid token, an {@link Authentication} with {@code SCOPE_internal:read} is
- * set on the context so {@code .authenticated()} downstream admits the call.
+ * {@code hielo.order.internal.internal-service-token} (env var
+ * {@code SYNC_SERVICE_TOKEN}). No default is supplied: a missing env var
+ * leaves {@code expectedToken} empty and the filter rejects every bearer
+ * token — fail-closed at runtime rather than boot. On a valid token, an
+ * {@link Authentication} with {@code SCOPE_internal:read} is set on the
+ * context so {@code .authenticated()} downstream admits the call.
  * Critically: this chain does NOT participate in
  * {@link com.sales.order.auth.security.JwtAuthenticationFilter} — the
  * internal endpoint must remain reachable from sync-service with only the
@@ -51,7 +53,7 @@ public class InternalSecurityConfig {
     @Order(50) // higher priority than the default JWT-validated catch-all chain
     SecurityFilterChain internalSecurityFilterChain(
             HttpSecurity http,
-            @Value("${hielo.order.internal.internal-service-token:dev-shared-secret-change-me}") String expectedToken)
+            @Value("${hielo.order.internal.internal-service-token:}") String expectedToken)
             throws Exception {
         http
                 .securityMatcher("/internal/**")

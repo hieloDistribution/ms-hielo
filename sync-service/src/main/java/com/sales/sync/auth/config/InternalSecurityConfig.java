@@ -32,7 +32,9 @@ import java.util.List;
  * <p>Authentication is via a static bearer service-token validated against the
  * environment-configured shared secret {@code SYNC_SERVICE_TOKEN}. The token
  * is the same value {@code order-service} uses to authenticate to
- * {@code sync-service} (D-13 / R-3). On a valid token, an
+ * {@code sync-service} (D-13 / R-3). No default is supplied: a missing env
+ * var leaves {@code expectedToken} empty and the filter rejects every bearer
+ * token — fail-closed at runtime rather than boot. On a valid token, an
  * {@link Authentication} is set with the {@code SCOPE_internal:read}
  * authority so paths may use {@code @PreAuthorize} (deferred to a follow-up
  * SDD; here it just gates {@code /internal/**} behind any authenticated
@@ -54,7 +56,7 @@ public class InternalSecurityConfig {
     @Order(50) // lower than the default catch-all chain (no @Order ⇒ 100)
     SecurityFilterChain internalSecurityFilterChain(
             HttpSecurity http,
-            @Value("${hielo.sync.auth.internal-service-token:dev-shared-secret-change-me}") String expectedToken)
+            @Value("${hielo.sync.auth.internal-service-token:}") String expectedToken)
             throws Exception {
         http
                 .securityMatcher("/internal/**")
