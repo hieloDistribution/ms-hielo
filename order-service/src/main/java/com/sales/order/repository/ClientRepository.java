@@ -41,4 +41,10 @@ public interface ClientRepository extends JpaRepository<Client, UUID> {
      * before flushing, before any DB-level {@code UNIQUE} violation).
      */
     boolean existsByTaxIdAndDeletedAtIsNull(String taxId);
+
+    /**
+     * Resolve the active client linked to a given user_id (used by
+     * {@code GET /api/v1/clients/me}).
+     */
+    Optional<Client> findByUserIdAndDeletedAtIsNull(UUID userId);
 }

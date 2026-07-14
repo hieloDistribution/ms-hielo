@@ -83,7 +83,11 @@ class JwtAuthenticationFilterTest {
         assertThat(capturedAuth.get()).isNotNull();
         assertThat(capturedAuth.get().getPrincipal()).isEqualTo(userId);
         assertThat(capturedVendorId.get()).contains(vendorId);
-        assertThat(capturedDriverId.get()).contains(vendorId);
+        // DriverContext is intentionally left empty by JwtAuthenticationFilter —
+        // a future DriverContextFilter would resolve driverId from parsed.userId()
+        // against the delivery_drivers table. Until then this filter must NOT
+        // alias vendorId into driverId (that was a prior bug).
+        assertThat(capturedDriverId.get()).isEmpty();
     }
 
     @Test

@@ -71,7 +71,7 @@ public class RefreshRotationService {
         var userOpt = users.findById(userId);
         UUID vendorId = userOpt.map(u -> u.getVendorId()).orElse(null);
 
-        String access = jwtService.sign(userId, vendorId);
+        String access = jwtService.sign(userId, vendorId, userOpt.get().getEmail(), userOpt.get().getRole());
         RefreshTokenCodec.OpaqueRefreshToken rt = refreshTokenCodec.generate();
 
         RefreshToken next = new RefreshToken();

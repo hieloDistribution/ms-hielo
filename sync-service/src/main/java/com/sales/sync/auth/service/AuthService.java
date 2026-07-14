@@ -22,9 +22,9 @@ import java.util.UUID;
 
 /**
  * Login flow: find the user, check the lock flag, BCrypt-compare the
- * password, issue a new access JWT, mint a fresh refresh token and persist
- * its SHA-256 hash tied to the user's current active family (or a new one
- * if no active family exists yet).
+ * password, issue a new access JWT (with email + role claims), mint a fresh
+ * refresh token and persist its SHA-256 hash tied to the user's current
+ * active family (or a new one if no active family exists yet).
  */
 @Service
 public class AuthService {
@@ -67,7 +67,7 @@ public class AuthService {
         UUID family = tokens.findActiveFamilyByUserId(userId)
                 .orElseGet(UUID::randomUUID);
 
-        String access = jwtService.sign(userId, user.getVendorId());
+        String access = jwtService.sign(userId, user.getVendorId(), user.getEmail(), user.getRole());
         RefreshTokenCodec.OpaqueRefreshToken rt = refreshTokenCodec.generate();
 
         RefreshToken row = new RefreshToken();

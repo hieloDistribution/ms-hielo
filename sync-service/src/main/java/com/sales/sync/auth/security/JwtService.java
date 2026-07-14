@@ -9,6 +9,7 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.MACVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.sales.sync.auth.model.User;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -22,11 +23,11 @@ import java.util.UUID;
  * Nimbus-backed HS256 JWT signer / parser.
  *
  * <p>sign: produces a compact JWS with claims
- * {@code sub}, {@code vendor_id}, {@code iss}, {@code aud}, {@code iat},
- * {@code exp}, {@code jti}.
+ * {@code sub}, {@code email}, {@code role}, {@code vendor_id},
+ * {@code iss}, {@code aud}, {@code iat}, {@code exp}, {@code jti}.
  *
  * <p>parse: verifies the HMAC signature, the issuer and the audience.
- * Returns a {@link JWTClaimsSet} on success; throws
+ * Returns a {@link ParsedToken} on success; throws
  * {@link TokenInvalidException} on signature/iss/aud failure,
  * {@link TokenExpiredException} on past {@code exp}.
  */
@@ -48,7 +49,7 @@ public class JwtService {
         this.props = props;
     }
 
-    public String sign(UUID userId, UUID vendorId) {
+    public String sign(UUID userId, UUID vendorId, String email, User.Role role) {
         try {
             Instant now = Instant.now();
             Instant exp = now.plus(props.accessTokenTtl());
@@ -58,7 +59,9 @@ public class JwtService {
                     .audience(props.audience())
                     .issueTime(Date.from(now))
                     .expirationTime(Date.from(exp))
-                    .jwtID(UUID.randomUUID().toString());
+                    .jwtID(UUID.randomUUID().toString())
+                    .claim("email", email)
+                    .claim("role", role.name());
             if (vendorId != null) {
                 b.claim("vendor_id", vendorId.toString());
             }
@@ -93,11 +96,14 @@ public class JwtService {
             UUID vendorId = Optional.ofNullable(c.getStringClaim("vendor_id"))
                     .map(UUID::fromString)
                     .orElse(null);
-            return new ParsedToken(userId, vendorId);
+            String email = c.getStringClaim("email");
+            String roleStr = c.getStringClaim("role");
+            User.Role role = roleStr != null ? User.Role.valueOf(roleStr) : User.Role.repartidor;
+            return new ParsedToken(userId, email, role, vendorId);
         } catch (ParseException | JOSEException e) {
             throw new TokenInvalidException("JWT parse failure: " + e.getMessage());
         }
     }
 
-    public record ParsedToken(UUID userId, UUID vendorId) {}
+    public record ParsedToken(UUID userId, String email, User.Role role, UUID vendorId) {}
 }

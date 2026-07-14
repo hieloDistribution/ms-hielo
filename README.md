@@ -4,8 +4,8 @@ Este es el repositorio principal para el sistema **B2B (Business-to-Business)** 
 
 El sistema consta de:
 1. **Cliente Móvil (Frontend)**: Desarrollado en Flutter, ubicado en el repositorio frontend independiente (`UI-HieloPedido`).
-2. **Servicio de Sincronización e Idempotencia (`sync-service`)**: Microservicio Spring Boot en Java 21, encargado de la puerta de entrada, la validación de tokens JWT, control de idempotencia y rotación de tokens de refresco.
-3. **Servicio de Pedidos y Catálogo (`order-service`)**: Microservicio Spring Boot en Java 21 que administra la base de datos transaccional central de pedidos, validación de stock y catálogo de productos.
+2. **Servicio de Sincronización e Idempotencia (`sync-service`)**: Microservicio Spring Boot en Java 25, encargado de la puerta de entrada, la validación de tokens JWT, control de idempotencia y rotación de tokens de refresco.
+3. **Servicio de Pedidos y Catálogo (`order-service`)**: Microservicio Spring Boot en Java 25 que administra la base de datos transaccional central de pedidos, validación de stock y catálogo de productos.
 4. **Base de Datos**: PostgreSQL 15 ejecutándose a través de Docker.
 
 ---

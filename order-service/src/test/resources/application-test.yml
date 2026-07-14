@@ -1,16 +1,18 @@
 spring:
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${TEST_DB_NAME:order_db}
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:order_db;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    username: sa
+    password:
   jpa:
     hibernate:
       # The pre-existing Order/Product/OrderItem entities do not have a Flyway
       # migration yet; this slice bootstraps the schema with JPA. Switch to
       # `validate` once the legacy entities are brought under Flyway control.
       ddl-auto: create-drop
+    database-platform: org.hibernate.dialect.H2Dialect
   flyway:
-    enabled: false                       # No migrations for order-service in this slice
+    enabled: false                       # No migrations needed for H2-backed tests
 
 jwt:
   secret: test-secret-test-secret-test-secret-32+bytes    # 41 bytes, ≥32

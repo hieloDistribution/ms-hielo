@@ -1,5 +1,6 @@
 package com.sales.sync.auth.security;
 
+import com.sales.sync.auth.model.User;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -9,6 +10,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JwtServiceTest {
+
+    private static final User.Role REPARTIDOR = User.Role.repartidor;
 
     private static JwtService newService(String secret) {
         JwtProperties p = new JwtProperties(
@@ -25,7 +28,7 @@ class JwtServiceTest {
         JwtService svc = newService("a".repeat(40));
         UUID userId = UUID.randomUUID();
         UUID vendorId = UUID.randomUUID();
-        String token = svc.sign(userId, vendorId);
+        String token = svc.sign(userId, vendorId, "user@example.com", REPARTIDOR);
 
         JwtService.ParsedToken parsed = svc.parse(token);
 
@@ -36,7 +39,7 @@ class JwtServiceTest {
     @Test
     void parse_rejects_tampered_signature() {
         JwtService svc = newService("a".repeat(40));
-        String token = svc.sign(UUID.randomUUID(), null);
+        String token = svc.sign(UUID.randomUUID(), null, "user@example.com", REPARTIDOR);
 
         // Tamper a character in the middle of the signature segment.
         // HS256 → 32 bytes → 43 base64url chars, the last char only
@@ -59,7 +62,7 @@ class JwtServiceTest {
     void parse_rejects_wrong_issuer() {
         JwtService svc = newService("a".repeat(40));
         UUID userId = UUID.randomUUID();
-        String token = svc.sign(userId, null);
+        String token = svc.sign(userId, null, "user@example.com", REPARTIDOR);
 
         JwtService otherSvc = newService("a".repeat(40)); // same secret, same issuer
 
@@ -72,7 +75,7 @@ class JwtServiceTest {
                 "other-issuer",
                 "hielo-order");
         JwtService other = new JwtService(otherProps);
-        String otherToken = other.sign(userId, null);
+        String otherToken = other.sign(userId, null, "user@example.com", REPARTIDOR);
 
         assertThatThrownBy(() -> svc.parse(otherToken))
                 .isInstanceOf(TokenInvalidException.class);
@@ -82,7 +85,7 @@ class JwtServiceTest {
     void parse_rejects_when_secret_changes() {
         JwtService svcA = newService("a".repeat(40));
         JwtService svcB = newService("b".repeat(40));
-        String tokenA = svcA.sign(UUID.randomUUID(), null);
+        String tokenA = svcA.sign(UUID.randomUUID(), null, "user@example.com", REPARTIDOR);
 
         assertThatThrownBy(() -> svcB.parse(tokenA))
                 .isInstanceOf(TokenInvalidException.class);

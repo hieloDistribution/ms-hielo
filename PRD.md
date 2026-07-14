@@ -30,7 +30,7 @@ graph TD
 
 ## 2. Microservicios Backend (Java)
 
-Se diseñarán dos microservicios independientes construidos con **Spring Boot 3.x** y **Java 21**, utilizando una arquitectura estructurada por capas (**Package by Layers**).
+Se diseñarán dos microservicios independientes construidos con **Spring Boot 3.x** y **Java 25**, utilizando una arquitectura estructurada por capas (**Package by Layers**).
 
 ### Estructura de Paquetes Común (Package by Layers)
 ```text
