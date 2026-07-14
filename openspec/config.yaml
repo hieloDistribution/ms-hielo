@@ -8,12 +8,12 @@ project:
   name: hielo
   description: >
     Multi-module backend monorepo for order processing and synchronization
-    services. Java 21 + Spring Boot 3.x, Maven build, Package by Layers.
+    services. Java 25 + Spring Boot 3.x, Maven build, Package by Layers.
   root: /home/hat/projects/ms-hielo
 
 stack:
   language: Java
-  java_version: "21"
+  java_version: "25"
   framework: Spring Boot 3.x
   build_tool: Maven
   modules:

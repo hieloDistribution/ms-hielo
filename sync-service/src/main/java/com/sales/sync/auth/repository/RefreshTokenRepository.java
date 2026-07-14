@@ -18,16 +18,16 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
 
     Optional<RefreshToken> findByTokenHash(String tokenHash);
 
+    Optional<RefreshToken> findFirstByUserIdAndRevokedFalseOrderByCreatedAtDesc(UUID userId);
+
     /**
      * Returns the {@code token_family} UUID of the most recently created
      * non-revoked refresh row for the given user, if any exists.
      */
-    @Query(value = """
-            SELECT token_family FROM refresh_tokens
-             WHERE user_id = :userId AND revoked = false
-             ORDER BY created_at DESC LIMIT 1
-            """, nativeQuery = true)
-    Optional<UUID> findActiveFamilyByUserId(@Param("userId") UUID userId);
+    default Optional<UUID> findActiveFamilyByUserId(@Param("userId") UUID userId) {
+        return findFirstByUserIdAndRevokedFalseOrderByCreatedAtDesc(userId)
+                .map(RefreshToken::getTokenFamily);
+    }
 
     /**
      * Burns a token family by marking every still-live row as revoked.

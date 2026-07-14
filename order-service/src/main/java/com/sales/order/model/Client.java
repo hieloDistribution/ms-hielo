@@ -98,6 +98,9 @@ public class Client {
     @Column(name = "updated_by")
     private UUID updatedBy;
 
+    @Column(name = "user_id")
+    private UUID userId;
+
     public Client() {
     }
 
@@ -247,6 +250,14 @@ public class Client {
 
     public void setUpdatedBy(UUID updatedBy) {
         this.updatedBy = updatedBy;
+    }
+
+    public UUID getUserId() {
+        return userId;
+    }
+
+    public void setUserId(UUID userId) {
+        this.userId = userId;
     }
 
     @Override

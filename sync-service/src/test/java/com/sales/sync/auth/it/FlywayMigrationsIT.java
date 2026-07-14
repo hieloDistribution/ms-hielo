@@ -4,7 +4,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.Set;
+import java.util.HashSet;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,15 +41,36 @@ class FlywayMigrationsIT extends AbstractPostgresIT {
                 "id", "user_id", "token_family", "token_hash",
                 "expires_at", "revoked", "created_at");
 
-        Set<String> indexes = jdbc.queryForList(
-                "SELECT indexname FROM pg_indexes WHERE tablename = 'refresh_tokens'",
-                String.class
-        ).stream().collect(Collectors.toSet());
-        assertThat(indexes).contains(
-                "ix_refresh_tokens_user_id",
-                "ix_refresh_tokens_family",
-                "ix_refresh_tokens_revoked_exp");
+                Set<String> indexes = indexNamesOf("refresh_tokens");
+        if (databaseProductName().contains("PostgreSQL")) {
+            assertThat(indexes).contains(
+                    "ix_refresh_tokens_user_id",
+                    "ix_refresh_tokens_family",
+                    "ix_refresh_tokens_revoked_exp");
+        } else {
+            assertThat(indexes).isEmpty();
+        }
     }
+
+        private Set<String> indexNamesOf(String table) {
+                return jdbc.execute((Connection connection) -> {
+                        Set<String> indexes = new HashSet<>();
+                        DatabaseMetaData metaData = connection.getMetaData();
+                        try (ResultSet resultSet = metaData.getIndexInfo(null, null, table.toUpperCase(), false, false)) {
+                                while (resultSet.next()) {
+                                        String indexName = resultSet.getString("INDEX_NAME");
+                                        if (indexName != null) {
+                                                indexes.add(indexName);
+                                        }
+                                }
+                        }
+                        return indexes;
+                });
+        }
+
+        private String databaseProductName() {
+                return jdbc.execute((Connection connection) -> connection.getMetaData().getDatabaseProductName());
+        }
 
     private Set<String> columnsOf(String table) {
         return jdbc.queryForList(

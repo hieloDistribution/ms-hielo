@@ -29,7 +29,7 @@ production code on every cycle.
 
 ## Conventions
 
-- **Backend**: Java 21, Spring Boot 3.x, Maven, Package by Layers
+- **Backend**: Java 25, Spring Boot 3.x, Maven, Package by Layers
   (`controller`, `service`, `repository`, `model`).
 - **Client** (`android-spec/`): Kotlin + Jetpack Room + WorkManager. Out of
   scope for backend SDD changes.
