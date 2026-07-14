@@ -2,11 +2,16 @@ package com.sales.sync.auth.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sales.sync.auth.dto.AuthResponse;
+import com.sales.sync.auth.repository.RefreshTokenRepository;
 import com.sales.sync.auth.security.AccountLockedException;
+import com.sales.sync.auth.security.AuthContext;
 import com.sales.sync.auth.security.InvalidCredentialsException;
+import com.sales.sync.auth.security.JwtService;
 import com.sales.sync.auth.security.SecurityConfig;
 import com.sales.sync.auth.service.AuthService;
 import com.sales.sync.auth.service.RefreshRotationService;
+import com.sales.sync.auth.service.SignupService;
+import com.sales.sync.auth.service.UserProfileService;
 import com.sales.sync.auth.support.AuthExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +19,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.is;
@@ -31,6 +37,12 @@ class AuthControllerWebMvcTest {
     @Autowired ObjectMapper objectMapper;
     @MockBean AuthService authService;
     @MockBean RefreshRotationService refreshRotationService;
+    @MockBean SignupService signupService;
+    @MockBean UserProfileService userProfileService;
+    @MockBean RefreshTokenRepository refreshTokenRepository;
+    @MockBean PasswordEncoder passwordEncoder;
+    @MockBean JwtService jwtService;
+    @MockBean AuthContext authContext;
 
     @Test
     void login_valid_returns_200_with_tokens_and_expires_in_900() throws Exception {
