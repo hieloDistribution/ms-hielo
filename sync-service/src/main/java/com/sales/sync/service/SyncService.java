@@ -92,6 +92,18 @@ public class SyncService {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
+        // Forward Authorization header to authenticate against order-service
+        org.springframework.web.context.request.RequestAttributes requestAttributes = 
+                org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+        if (requestAttributes instanceof org.springframework.web.context.request.ServletRequestAttributes) {
+            jakarta.servlet.http.HttpServletRequest currentRequest = 
+                    ((org.springframework.web.context.request.ServletRequestAttributes) requestAttributes).getRequest();
+            String authHeader = currentRequest.getHeader("Authorization");
+            if (authHeader != null) {
+                headers.set("Authorization", authHeader);
+            }
+        }
+
         String operation = mutation.getOperation();
         String url = orderServiceUrl + "/api/v1/orders";
 
@@ -100,8 +112,9 @@ public class SyncService {
             // Enviamos POST/PUT al order-service. Usamos POST para ambos ya que el order-service manejara el guardado (save)
             restTemplate.postForEntity(url, entity, String.class);
         } else if ("DELETE".equalsIgnoreCase(operation)) {
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
             // Enviamos DELETE pasándole el entityId del pedido a eliminar
-            restTemplate.delete(url + "/" + mutation.getEntityId());
+            restTemplate.exchange(url + "/" + mutation.getEntityId(), org.springframework.http.HttpMethod.DELETE, entity, Void.class);
         } else {
             throw new IllegalArgumentException("Operacion no soportada: " + operation);
         }
