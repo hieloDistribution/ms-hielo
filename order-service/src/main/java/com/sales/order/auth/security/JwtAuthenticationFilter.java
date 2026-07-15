@@ -1,5 +1,6 @@
 package com.sales.order.auth.security;
 
+import com.sales.order.repository.DeliveryDriverRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -36,13 +37,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final VendorContext vendorContext;
     private final DriverContext driverContext;
+    private final DeliveryDriverRepository deliveryDriverRepository;
 
     public JwtAuthenticationFilter(JwtService jwtService,
                                    VendorContext vendorContext,
-                                   DriverContext driverContext) {
+                                   DriverContext driverContext,
+                                   DeliveryDriverRepository deliveryDriverRepository) {
         this.jwtService = jwtService;
         this.vendorContext = vendorContext;
         this.driverContext = driverContext;
+        this.deliveryDriverRepository = deliveryDriverRepository;
     }
 
     @Override
@@ -61,8 +65,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     String r = parsed.role().toLowerCase(Locale.ROOT);
                     if ("admin".equals(r)) {
                         authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+                    } else if ("vendedor".equals(r)) {
+                        authorities.add(new SimpleGrantedAuthority("ROLE_VENDEDOR"));
                     } else if ("repartidor".equals(r)) {
                         authorities.add(new SimpleGrantedAuthority("ROLE_REPARTIDOR"));
+                        // Resolve the driverId from the database dynamically
+                        deliveryDriverRepository.findByUserId(parsed.userId())
+                                .ifPresent(d -> driverContext.set(Optional.of(d.getId())));
                     } else if ("cliente".equals(r)) {
                         authorities.add(new SimpleGrantedAuthority("ROLE_CLIENTE"));
                     }
@@ -73,10 +82,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         authorities);
                 SecurityContextHolder.getContext().setAuthentication(auth);
                 vendorContext.set(Optional.ofNullable(parsed.vendorId()));
-                // DriverContext is populated by DriverContextFilter based on
-                // parsed.userId(); keep it empty here to avoid the prior bug
-                // that aliased vendorId as driverId.
-                driverContext.set(Optional.empty());
             } catch (TokenInvalidException | TokenExpiredException ex) {
                 SecurityContextHolder.clearContext();
                 vendorContext.set(Optional.empty());

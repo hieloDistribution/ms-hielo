@@ -9,6 +9,7 @@ import com.sales.sync.auth.repository.UserRepository;
 import com.sales.sync.auth.security.JwtProperties;
 import com.sales.sync.auth.security.JwtService;
 import com.sales.sync.auth.security.RefreshTokenCodec;
+import com.sales.sync.auth.internal.OrderInternalVendorsClient;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,19 +34,22 @@ public class SignupService {
     private final JwtService jwtService;
     private final RefreshTokenCodec refreshTokenCodec;
     private final JwtProperties props;
+    private final OrderInternalVendorsClient orderInternalVendorsClient;
 
     public SignupService(UserRepository users,
                          RefreshTokenRepository tokens,
                          PasswordEncoder passwordEncoder,
                          JwtService jwtService,
                          RefreshTokenCodec refreshTokenCodec,
-                         JwtProperties props) {
+                         JwtProperties props,
+                         OrderInternalVendorsClient orderInternalVendorsClient) {
         this.users = users;
         this.tokens = tokens;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.refreshTokenCodec = refreshTokenCodec;
         this.props = props;
+        this.orderInternalVendorsClient = orderInternalVendorsClient;
     }
 
     @Transactional
@@ -56,6 +60,8 @@ public class SignupService {
         }
 
         User u = new User();
+        UUID userId = UUID.randomUUID();
+        u.setId(userId);
         u.setEmail(email);
         u.setPasswordHash(passwordEncoder.encode(req.password()));
         u.setLocked(false);
@@ -68,6 +74,12 @@ public class SignupService {
         if (req.business_lat() != null) u.setBusinessLat(BigDecimal.valueOf(req.business_lat()));
         if (req.business_lng() != null) u.setBusinessLng(BigDecimal.valueOf(req.business_lng()));
         if (req.business_address() != null) u.setBusinessAddress(req.business_address());
+
+        if (User.Role.vendedor == u.getRole()) {
+            UUID vendorId = UUID.randomUUID();
+            u.setVendorId(vendorId);
+            orderInternalVendorsClient.createVendor(vendorId, userId, u.getFullName(), u.getEmail(), u.getPhone());
+        }
 
         users.save(u);
 

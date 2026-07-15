@@ -9,6 +9,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import com.sales.order.repository.DeliveryDriverRepository;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -25,13 +26,15 @@ class JwtAuthenticationFilterTest {
     private VendorContext vendorContext;
     private DriverContext driverContext;
     private JwtAuthenticationFilter filter;
+    private DeliveryDriverRepository deliveryDriverRepository;
 
     @BeforeEach
     void setUp() {
         jwtService = mock(JwtService.class);
         vendorContext = new VendorContext();
         driverContext = new DriverContext();
-        filter = new JwtAuthenticationFilter(jwtService, vendorContext, driverContext);
+        deliveryDriverRepository = mock(DeliveryDriverRepository.class);
+        filter = new JwtAuthenticationFilter(jwtService, vendorContext, driverContext, deliveryDriverRepository);
         SecurityContextHolder.clearContext();
     }
 

@@ -39,9 +39,11 @@ public class SecurityConfig {
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .exceptionHandling(e -> e
                     .authenticationEntryPoint((req, res, ex) -> {
+                        String reason = (String) req.getAttribute(JwtAuthenticationFilter.AUTH_FAIL_ATTR);
+                        String errorCode = reason != null ? reason : "no_token";
                         res.setStatus(401);
                         res.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                        res.getWriter().write("{\"error\":\"token_expired\"}");
+                        res.getWriter().write("{\"error\":\"" + errorCode + "\"}");
                     }));
         return http.build();
     }

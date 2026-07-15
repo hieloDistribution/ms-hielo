@@ -18,7 +18,7 @@ import java.util.UUID;
 public class User {
 
     public enum Role {
-        admin, repartidor, cliente
+        admin, vendedor, repartidor, cliente
     }
 
     @Id

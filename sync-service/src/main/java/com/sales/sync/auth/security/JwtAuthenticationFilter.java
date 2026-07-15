@@ -4,6 +4,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -23,6 +25,9 @@ import java.util.Optional;
  */
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
+    static final String AUTH_FAIL_ATTR = "jwt.auth.failure";
 
     private static final String HEADER = "Authorization";
     private static final String PREFIX = "Bearer ";
@@ -53,7 +58,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         authorities);
                 SecurityContextHolder.getContext().setAuthentication(auth);
                 authContext.set(parsed);
-            } catch (TokenInvalidException | TokenExpiredException ex) {
+            } catch (TokenExpiredException ex) {
+                log.debug("JWT rejected (expired) for {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+                request.setAttribute(AUTH_FAIL_ATTR, "token_expired");
+                SecurityContextHolder.clearContext();
+                authContext.clear();
+            } catch (TokenInvalidException ex) {
+                log.warn("JWT rejected (invalid) for {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+                request.setAttribute(AUTH_FAIL_ATTR, "token_invalid");
                 SecurityContextHolder.clearContext();
                 authContext.clear();
             }

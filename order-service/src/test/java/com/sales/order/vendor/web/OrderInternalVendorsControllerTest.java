@@ -31,8 +31,9 @@ class OrderInternalVendorsControllerTest {
     @BeforeEach
     void setUp() {
         vendorRepository = mock(VendorRepository.class);
+        jakarta.persistence.EntityManager em = mock(jakarta.persistence.EntityManager.class);
         mvc = MockMvcBuilders
-                .standaloneSetup(new OrderInternalVendorsController(vendorRepository))
+                .standaloneSetup(new OrderInternalVendorsController(vendorRepository, em))
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
                 .build();
     }

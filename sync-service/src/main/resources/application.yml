@@ -22,6 +22,7 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
     clean-disabled: false
+    validate-on-migrate: false
 
 jwt:
   secret: ${JWT_SECRET:}
