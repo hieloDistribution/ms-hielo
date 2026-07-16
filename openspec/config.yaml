@@ -40,10 +40,10 @@ test_runner:
 
 sdd:
   enabled: true
-  artifact_store: openspec
+  artifact_store: both
   changes_root: openspec/changes/
-  current_change: core-domain-model
-  working_branch: feature/core-domain-model
+  current_change: admin-console
+  working_branch: feature/admin-console
   execution_mode: interactive
   chained_pr_strategy: auto-forecast
   review_budget_lines: 400

@@ -1,5 +1,7 @@
 package com.sales.sync.auth.service;
 
+import com.sales.sync.auth.admin.AdminAuditLogger;
+import com.sales.sync.auth.admin.AuditEvent;
 import com.sales.sync.auth.dto.AuthResponse;
 import com.sales.sync.auth.dto.SignupRequest;
 import com.sales.sync.auth.model.RefreshToken;
@@ -19,10 +21,26 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Self-service user registration. Creates the user with the requested role,
- * hashes the password with BCrypt, issues an access JWT plus an opaque
- * refresh token tied to a fresh token family. Throws
- * {@link EmailAlreadyExistsException} when the email is already taken.
+ * Self-service user registration owned by change admin-console (PR1).
+ *
+ * <p>Behavior:
+ * <ul>
+ *   <li>Always creates the user with {@code role = CLIENT}. Any value the
+ *       client supplies for {@code role} in the request body is ignored.</li>
+ *   <li>If the client supplied a non-{@code cliente} role, an audit row is
+ *       written with {@code action='signup_role_ignored'} for forensic
+ *       visibility. The {@code cliente} value (or null/missing) is treated
+ *       as a no-op and does NOT emit an audit row.</li>
+ *   <li>The {@code role} field on {@link SignupRequest} is
+ *       {@code @Deprecated} but kept so that bypass attempts are still
+ *       detectable after the Flutter app stops sending it. New clients
+ *       should send no role at all.</li>
+ *   <li>Email uniqueness is enforced before persistence. Password is
+ *       bcrypt-hashed with the application's configured cost. A fresh
+ *       access JWT plus an opaque refresh-token (with a new
+ *       {@code token_family}) is issued, matching the canonical
+ *       refresh-token rotation model.</li>
+ * </ul>
  */
 @Service
 public class SignupService {
@@ -33,19 +51,22 @@ public class SignupService {
     private final JwtService jwtService;
     private final RefreshTokenCodec refreshTokenCodec;
     private final JwtProperties props;
+    private final AdminAuditLogger auditLogger;
 
     public SignupService(UserRepository users,
                          RefreshTokenRepository tokens,
                          PasswordEncoder passwordEncoder,
                          JwtService jwtService,
                          RefreshTokenCodec refreshTokenCodec,
-                         JwtProperties props) {
+                         JwtProperties props,
+                         AdminAuditLogger auditLogger) {
         this.users = users;
         this.tokens = tokens;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.refreshTokenCodec = refreshTokenCodec;
         this.props = props;
+        this.auditLogger = auditLogger;
     }
 
     @Transactional
@@ -55,11 +76,21 @@ public class SignupService {
             throw new EmailAlreadyExistsException(email);
         }
 
+        // Defensive: capture whether the client attempted a role bypass before
+        // we overwrite it. NULL or 'cliente' (case-insensitive) is the no-op
+        // path; any other value (admin, repartidor, foo) is a bypass attempt.
+        boolean bypassAttempt = req.role() != null
+                && !req.role().isBlank()
+                && !"cliente".equalsIgnoreCase(req.role());
+
         User u = new User();
         u.setEmail(email);
         u.setPasswordHash(passwordEncoder.encode(req.password()));
         u.setLocked(false);
-        u.setRole(User.Role.valueOf(req.role()));
+        // Lock the role server-side. The clients.role column remains the
+        // single source of truth for v1; PR2/PR3 will migrate to a TEXT[]
+        // without changing this code path.
+        u.setRole(User.Role.cliente);
 
         if (req.full_name() != null) u.setFullName(req.full_name());
         if (req.phone() != null) u.setPhone(req.phone());
@@ -81,6 +112,13 @@ public class SignupService {
         row.setTokenHash(rt.hash());
         row.setExpiresAt(Instant.now().plus(props.refreshTokenTtl()));
         tokens.save(row);
+
+        if (bypassAttempt) {
+            auditLogger.log(AuditEvent.anonymous(
+                    "signup_role_ignored",
+                    email,
+                    "role=" + req.role()));
+        }
 
         return new AuthResponse(access, rt.plaintext(), props.accessTokenTtl().toSeconds());
     }
