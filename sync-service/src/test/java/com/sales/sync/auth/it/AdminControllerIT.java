@@ -288,6 +288,31 @@ class AdminControllerIT extends AbstractPostgresIT {
         }
 
         @Test
+        @DisplayName("admin A can demote admin B to cliente; B is no longer admin; A is still the only one with admin role and is now locked from self-demote")
+        void admin_can_demote_another_admin_then_self_locked() {
+            User adminA = seedUser("a@hielo.com", User.Role.admin, true, false);
+            User adminB = seedUser("b@hielo.com", User.Role.admin, true, false);
+            String tokenA = login("a@hielo.com");
+
+            // 1. A demotes B to cliente -> 200 OK.
+            ResponseEntity<JsonNode> demoteB = patch(
+                    "/api/v1/admin/users/" + adminB.getId() + "/roles",
+                    tokenA, Map.of("roles", List.of("cliente")));
+            assertThat(demoteB.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(users.findById(adminB.getId()).orElseThrow().getRoles())
+                    .as("B's roles are now {cliente}")
+                    .extracting(r -> r.getName())
+                    .containsExactly("cliente");
+
+            // 2. A is the only active admin. A cannot self-demote.
+            ResponseEntity<JsonNode> selfDemote = patch(
+                    "/api/v1/admin/users/" + adminA.getId() + "/roles",
+                    tokenA, Map.of("roles", List.of("cliente")));
+            assertThat(selfDemote.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+            assertThat(selfDemote.getBody().get("error").asText())
+                    .isEqualTo("cannot_self_demote_last_admin");
+        }
+
         @DisplayName("self-demote of one of two admins -> allowed")
         void self_demote_when_other_admins_exist() {
             User admin1 = seedUser("admin1@hielo.com", User.Role.admin, true, false);
@@ -373,6 +398,39 @@ class AdminControllerIT extends AbstractPostgresIT {
         }
 
         @Test
+        @DisplayName("admin A can deactivate admin B; then A is the last admin and is locked from self-deactivate until B is reactivated")
+        void admin_can_deactivate_another_admin_then_self_locked_until_reactivate() {
+            User adminA = seedUser("a@hielo.com", User.Role.admin, true, false);
+            User adminB = seedUser("b@hielo.com", User.Role.admin, true, false);
+            String tokenA = login("a@hielo.com");
+
+            // 1. A deactivates B -> 200 OK, B is inactive.
+            ResponseEntity<JsonNode> deactivateB = post(
+                    "/api/v1/admin/users/" + adminB.getId() + "/deactivate", tokenA, Map.of());
+            assertThat(deactivateB.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(users.findById(adminB.getId()).orElseThrow().isActive()).isFalse();
+
+            // 2. Now A is the only active admin. A cannot self-deactivate.
+            ResponseEntity<JsonNode> selfDeactivate = post(
+                    "/api/v1/admin/users/" + adminA.getId() + "/deactivate", tokenA, Map.of());
+            assertThat(selfDeactivate.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+            assertThat(selfDeactivate.getBody().get("error").asText())
+                    .isEqualTo("cannot_deactivate_last_admin");
+            assertThat(users.findById(adminA.getId()).orElseThrow().isActive())
+                    .as("A is still active after the blocked self-deactivate")
+                    .isTrue();
+
+            // 3. A reactivates B -> 200 OK.
+            ResponseEntity<JsonNode> reactivateB = post(
+                    "/api/v1/admin/users/" + adminB.getId() + "/reactivate", tokenA, Map.of());
+            assertThat(reactivateB.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+            // 4. Now A is NOT the last admin. A can self-deactivate.
+            ResponseEntity<JsonNode> selfDeactivate2 = post(
+                    "/api/v1/admin/users/" + adminA.getId() + "/deactivate", tokenA, Map.of());
+            assertThat(selfDeactivate2.getStatusCode()).isEqualTo(HttpStatus.OK);
+        }
+
         @DisplayName("self-deactivate of last admin -> 409 cannot_deactivate_last_admin")
         void self_deactivate_last_admin_blocked() {
             User admin = seedUser("admin@hielo.com", User.Role.admin, true, false);
