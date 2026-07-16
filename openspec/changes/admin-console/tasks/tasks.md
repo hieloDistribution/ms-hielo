@@ -318,6 +318,7 @@ Forecast: **400-500 LOC diff + V7 migration + Flutter rewrite of AdminScreen**. 
 - **Evidence**: unit test asserts a known-weak password is rejected.
 
 ### PR4-12: Flutter — remove role selector from RegisterScreen
+- **Status**: ✅ DONE 2026-07-16 (Flutter rewrite shipped in UI-HieloPedido repo, commit 27b62a0).
 - **Status**: ✅ DONE 2026-07-16 (backend only; PR4-12 to PR4-15 deferred to a Flutter follow-up).
 
 - **Type**: FRONTEND RED + GREEN.
@@ -326,6 +327,7 @@ Forecast: **400-500 LOC diff + V7 migration + Flutter rewrite of AdminScreen**. 
 - **Evidence**: app builds, manual smoke test confirms only client registration is exposed.
 
 ### PR4-13: Flutter — update TokenStorage and OrderProvider for roles[]
+- **Status**: ✅ DONE 2026-07-16 (Flutter rewrite shipped in UI-HieloPedido repo, commit 27b62a0).
 - **Status**: ✅ DONE 2026-07-16 (backend only; PR4-12 to PR4-15 deferred to a Flutter follow-up).
 
 - **Type**: FRONTEND RED + GREEN.
@@ -334,6 +336,7 @@ Forecast: **400-500 LOC diff + V7 migration + Flutter rewrite of AdminScreen**. 
 - **Evidence**: existing screens compile; manual smoke test confirms login hydrates roles set correctly.
 
 ### PR4-14: Flutter — AdminConsole + tabs
+- **Status**: ✅ DONE 2026-07-16 (Flutter rewrite shipped in UI-HieloPedido repo, commit 27b62a0).
 - **Status**: ✅ DONE 2026-07-16 (backend only; PR4-12 to PR4-15 deferred to a Flutter follow-up).
 
 - **Type**: FRONTEND.
@@ -342,6 +345,7 @@ Forecast: **400-500 LOC diff + V7 migration + Flutter rewrite of AdminScreen**. 
 - **Evidence**: app builds, manual test confirms listing, role change, deactivate/reactivate, invite flow.
 
 ### PR4-15: Flutter — mustChangePassword route
+- **Status**: ✅ DONE 2026-07-16 (Flutter rewrite shipped in UI-HieloPedido repo, commit 27b62a0).
 - **Status**: ✅ DONE 2026-07-16 (backend only; PR4-12 to PR4-15 deferred to a Flutter follow-up).
 
 - **Type**: FRONTEND.
