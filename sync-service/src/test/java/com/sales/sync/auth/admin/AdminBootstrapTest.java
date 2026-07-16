@@ -1,6 +1,8 @@
 package com.sales.sync.auth.admin;
 
+import com.sales.sync.auth.model.Role;
 import com.sales.sync.auth.model.User;
+import com.sales.sync.auth.repository.RoleRepository;
 import com.sales.sync.auth.repository.UserRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,7 +19,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
-import java.util.Set;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -29,7 +31,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Unit-level coverage for the first-admin bootstrap (PR2 of change
- * {@code admin-console}). Mockito-only, fast deterministic cycle.
+ * {@code admin-console}, shape B). Mockito-only.
  *
  * <p>Owner: change admin-console. Spec reference: B1 (first-boot seeder)
  * and B3 (--admin-recover) in
@@ -39,6 +41,7 @@ import static org.mockito.Mockito.when;
 class AdminBootstrapTest {
 
     @Mock private UserRepository users;
+    @Mock private RoleRepository roles;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private AdminBootstrapProperties props;
     @Mock private RandomPasswordGenerator passwordGenerator;
@@ -48,10 +51,17 @@ class AdminBootstrapTest {
     private final ByteArrayOutputStream stdoutCapture = new ByteArrayOutputStream();
     private final PrintStream originalOut = System.out;
 
+    /** The admin role row the bootstrap is expected to look up. */
+    private Role adminRole;
+
     @BeforeEach
     void setUp() {
-        bootstrap = new AdminBootstrap(users, passwordEncoder, passwordGenerator, props);
+        bootstrap = new AdminBootstrap(users, roles, passwordEncoder, passwordGenerator, props);
         System.setOut(new PrintStream(stdoutCapture, true, StandardCharsets.UTF_8));
+        adminRole = new Role();
+        adminRole.setId(UUID.randomUUID());
+        adminRole.setName("admin");
+        adminRole.setDescription("System administrator with full access to /api/v1/admin/**");
     }
 
     @AfterEach
@@ -68,10 +78,11 @@ class AdminBootstrapTest {
     void run_on_empty_db_creates_one_admin() {
         when(props.isBootstrapEnabled()).thenReturn(true);
         when(props.getRecoverEmail()).thenReturn("");
-        when(users.countActiveByRole(User.Role.admin)).thenReturn(0L);
+        when(users.countActiveByRoleName("admin")).thenReturn(0L);
+        when(users.findByEmail(any())).thenReturn(Optional.empty());
+        when(roles.findByName("admin")).thenReturn(Optional.of(adminRole));
         when(passwordGenerator.generate(16)).thenReturn("random-pw-16bytes");
         when(passwordEncoder.encode("random-pw-16bytes")).thenReturn("bcrypt-hash");
-        when(users.findByEmail(any())).thenReturn(Optional.empty());
 
         bootstrap.run(mock(ApplicationArguments.class));
 
@@ -84,14 +95,16 @@ class AdminBootstrapTest {
                 .startsWith("admin+")
                 .endsWith("@bootstrap.local");
         assertThat(u.getRoles())
-                .as("multi-role source of truth")
-                .containsExactly(User.Role.admin);
+                .as("multi-role source of truth comes from the roles table")
+                .containsExactly(adminRole);
         assertThat(u.isMustChangePassword())
                 .as("first login must force password change")
                 .isTrue();
         assertThat(u.isActive()).isTrue();
         assertThat(u.isLocked()).isFalse();
         assertThat(u.getPasswordHash()).isEqualTo("bcrypt-hash");
+        // The legacy single-string column is kept in sync for the JWT cut-over.
+        assertThat(u.getRole()).isEqualTo(User.Role.admin);
 
         String out = capturedStdout();
         assertThat(out).contains("[admin-bootstrap] credentials");
@@ -105,11 +118,12 @@ class AdminBootstrapTest {
     void run_with_existing_admin_does_nothing() {
         when(props.isBootstrapEnabled()).thenReturn(true);
         when(props.getRecoverEmail()).thenReturn("");
-        when(users.countActiveByRole(User.Role.admin)).thenReturn(1L);
+        when(users.countActiveByRoleName("admin")).thenReturn(1L);
 
         bootstrap.run(mock(ApplicationArguments.class));
 
         verify(users, never()).save(any());
+        verify(roles, never()).findByName(any());
         assertThat(capturedStdout())
                 .as("must not print credentials when an admin already exists")
                 .doesNotContain("[admin-bootstrap] credentials");
@@ -123,7 +137,8 @@ class AdminBootstrapTest {
         bootstrap.run(mock(ApplicationArguments.class));
 
         verify(users, never()).save(any());
-        verify(users, never()).countActiveByRole(any());
+        verify(users, never()).countActiveByRoleName(any());
+        verify(roles, never()).findByName(any());
         assertThat(capturedStdout()).doesNotContain("[admin-bootstrap] credentials");
     }
 
@@ -132,8 +147,9 @@ class AdminBootstrapTest {
     void run_with_recover_email_and_no_admin_creates_admin() {
         when(props.isBootstrapEnabled()).thenReturn(true);
         when(props.getRecoverEmail()).thenReturn("ceo@hielo.com");
-        when(users.countActiveByRole(User.Role.admin)).thenReturn(0L);
+        when(users.countActiveByRoleName("admin")).thenReturn(0L);
         when(users.findByEmail("ceo@hielo.com")).thenReturn(Optional.empty());
+        when(roles.findByName("admin")).thenReturn(Optional.of(adminRole));
         when(passwordGenerator.generate(16)).thenReturn("recovery-pw");
         when(passwordEncoder.encode("recovery-pw")).thenReturn("bcrypt-recovery");
 
@@ -142,7 +158,7 @@ class AdminBootstrapTest {
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(users).save(captor.capture());
         assertThat(captor.getValue().getEmail()).isEqualTo("ceo@hielo.com");
-        assertThat(captor.getValue().getRoles()).containsExactly(User.Role.admin);
+        assertThat(captor.getValue().getRoles()).containsExactly(adminRole);
         assertThat(captor.getValue().isMustChangePassword()).isTrue();
 
         assertThat(capturedStdout()).contains("email=ceo@hielo.com");
@@ -154,11 +170,12 @@ class AdminBootstrapTest {
     void run_with_recover_email_and_existing_admin_is_noop() {
         when(props.isBootstrapEnabled()).thenReturn(true);
         when(props.getRecoverEmail()).thenReturn("ceo@hielo.com");
-        when(users.countActiveByRole(User.Role.admin)).thenReturn(1L);
+        when(users.countActiveByRoleName("admin")).thenReturn(1L);
 
         bootstrap.run(mock(ApplicationArguments.class));
 
         verify(users, never()).save(any());
+        verify(roles, never()).findByName(any());
         assertThat(capturedStdout()).doesNotContain("[admin-bootstrap] credentials");
     }
 
@@ -167,11 +184,11 @@ class AdminBootstrapTest {
     void run_is_idempotent_on_second_call() {
         when(props.isBootstrapEnabled()).thenReturn(true);
         when(props.getRecoverEmail()).thenReturn("");
-        // First call sees 0 admins, second call sees 1 (because first saved one).
-        when(users.countActiveByRole(User.Role.admin))
+        when(users.countActiveByRoleName("admin"))
                 .thenReturn(0L)
                 .thenReturn(1L);
         when(users.findByEmail(any())).thenReturn(Optional.empty());
+        when(roles.findByName("admin")).thenReturn(Optional.of(adminRole));
         when(passwordGenerator.generate(16)).thenReturn("first-pw");
         when(passwordEncoder.encode("first-pw")).thenReturn("first-hash");
 
@@ -179,6 +196,9 @@ class AdminBootstrapTest {
         bootstrap.run(mock(ApplicationArguments.class));
 
         verify(users, times(1)).save(any());
+        // The role lookup happens only on the first call (the second call
+        // short-circuits on `activeAdminCount > 0`).
+        verify(roles, times(1)).findByName("admin");
     }
 
     @Test
@@ -186,13 +206,14 @@ class AdminBootstrapTest {
     void run_with_recover_email_colliding_with_existing_user_skips() {
         when(props.isBootstrapEnabled()).thenReturn(true);
         when(props.getRecoverEmail()).thenReturn("already-taken@hielo.com");
-        when(users.countActiveByRole(User.Role.admin)).thenReturn(0L);
+        when(users.countActiveByRoleName("admin")).thenReturn(0L);
         when(users.findByEmail("already-taken@hielo.com"))
                 .thenReturn(Optional.of(new User()));
 
         bootstrap.run(mock(ApplicationArguments.class));
 
         verify(users, never()).save(any());
+        verify(roles, never()).findByName(any());
         assertThat(capturedStdout()).doesNotContain("[admin-bootstrap] credentials");
     }
 
@@ -201,8 +222,9 @@ class AdminBootstrapTest {
     void run_with_recover_email_normalizes_case_and_whitespace() {
         when(props.isBootstrapEnabled()).thenReturn(true);
         when(props.getRecoverEmail()).thenReturn("  CEO@Hielo.COM  ");
-        when(users.countActiveByRole(User.Role.admin)).thenReturn(0L);
+        when(users.countActiveByRoleName("admin")).thenReturn(0L);
         when(users.findByEmail("ceo@hielo.com")).thenReturn(Optional.empty());
+        when(roles.findByName("admin")).thenReturn(Optional.of(adminRole));
         when(passwordGenerator.generate(16)).thenReturn("normalized-pw");
         when(passwordEncoder.encode("normalized-pw")).thenReturn("normalized-hash");
 
@@ -211,5 +233,22 @@ class AdminBootstrapTest {
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(users).save(captor.capture());
         assertThat(captor.getValue().getEmail()).isEqualTo("ceo@hielo.com");
+    }
+
+    @Test
+    @DisplayName("EDGE: 'admin' role not seeded -> IllegalStateException surfaces")
+    void run_with_admin_role_missing_throws() {
+        when(props.isBootstrapEnabled()).thenReturn(true);
+        when(props.getRecoverEmail()).thenReturn("");
+        when(users.countActiveByRoleName("admin")).thenReturn(0L);
+        when(users.findByEmail(any())).thenReturn(Optional.empty());
+        when(roles.findByName("admin")).thenReturn(Optional.empty());
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> bootstrap.run(mock(ApplicationArguments.class)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("admin");
+
+        verify(users, never()).save(any());
     }
 }

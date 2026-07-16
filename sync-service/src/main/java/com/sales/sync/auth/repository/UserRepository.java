@@ -13,16 +13,15 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByEmail(String email);
 
     /**
-     * Counts distinct active users that have the given role in their
-     * {@code roles} collection. Used by
-     * {@code com.sales.sync.auth.admin.AdminBootstrap} to detect whether
-     * the first admin has already been seeded.
+     * Counts distinct active users that have a role with the given name.
+     * Used by {@code com.sales.sync.auth.admin.AdminBootstrap} to detect
+     * whether the first admin has already been seeded.
      *
-     * <p>Implementation note: JPA derived queries on
-     * {@code @ElementCollection} fields do not work portably across
-     * Hibernate versions, so this is a JPQL query.
+     * <p>Query joins through the {@code user_roles} M:N table to the
+     * {@code roles} table and filters by {@code roles.name}. Shape B
+     * (V6 migration).
      */
     @Query("SELECT COUNT(DISTINCT u) FROM User u JOIN u.roles r "
-            + "WHERE r = :role AND u.active = true")
-    long countActiveByRole(@Param("role") User.Role role);
+            + "WHERE r.name = :roleName AND u.active = true")
+    long countActiveByRoleName(@Param("roleName") String roleName);
 }

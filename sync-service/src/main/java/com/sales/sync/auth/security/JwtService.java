@@ -15,27 +15,36 @@ import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
  * Nimbus-backed HS256 JWT signer / parser.
  *
- * <p>sign: produces a compact JWS with claims
- * {@code sub}, {@code email}, {@code role}, {@code vendor_id},
- * {@code mcp}, {@code iss}, {@code aud}, {@code iat}, {@code exp}, {@code jti}.
+ * <p>Sign produces a compact JWS with claims:
+ * {@code sub, email, role (legacy single string), roles (array),
+ * vendor_id, mcp, iss, aud, iat, exp, jti}.
  *
- * <p>parse: verifies the HMAC signature, the issuer and the audience.
- * Returns a {@link ParsedToken} on success; throws
- * {@link TokenInvalidException} on signature/iss/aud failure,
- * {@link TokenExpiredException} on past {@code exp}.
+ * <p>Parse verifies the HMAC, the issuer, the audience, and the
+ * expiration; returns a {@link ParsedToken} that carries the full role
+ * set parsed from either the {@code roles} array claim (preferred) or
+ * the legacy {@code role} single-string claim (fallback for tokens
+ * issued during the cut-over window or by older code).
+ *
+ * <p>Cut-over window (PR3-PR5):
+ * <ul>
+ *   <li>{@code role} (single string) — deprecated; dropped in PR5.</li>
+ *   <li>{@code roles} (array) — authoritative post-PR5.</li>
+ * </ul>
  *
  * <p>The {@code mcp} claim is the {@code must-change-password} flag
- * added by change {@code admin-console} PR2. PR3's {@code RoleGateFilter}
- * blocks {@code /api/v1/admin/**} when {@code mcp=true} so a freshly
- * bootstrapped admin cannot use the console until they rotate the
- * credential captured from stdout.
+ * added by PR2. PR3's {@code RoleGateFilter} blocks
+ * {@code /api/v1/admin/**} when {@code mcp=true}.
  */
 @Component
 public class JwtService {
@@ -56,15 +65,30 @@ public class JwtService {
     }
 
     /**
-     * 4-arg back-compat overload. Defaults {@code mustChangePassword=false}.
-     * Use the 5-arg form when the user must rotate their password (bootstrap
-     * admins, reactivated users).
+     * 4-arg back-compat overload. Defaults {@code mustChangePassword=false}
+     * and wraps the single role in a singleton set so the
+     * {@code roles} array claim still carries one element.
      */
     public String sign(UUID userId, UUID vendorId, String email, User.Role role) {
-        return sign(userId, vendorId, email, role, false);
+        Set<User.Role> roles = (role == null) ? Collections.emptySet() : Set.of(role);
+        return sign(userId, vendorId, email, roles, false);
     }
 
+    /**
+     * 4-arg overload with the mcp flag (kept from PR2 for the bootstrap
+     * case). Used by AuthService.login.
+     */
     public String sign(UUID userId, UUID vendorId, String email, User.Role role, boolean mustChangePassword) {
+        Set<User.Role> roles = (role == null) ? Collections.emptySet() : Set.of(role);
+        return sign(userId, vendorId, email, roles, mustChangePassword);
+    }
+
+    /**
+     * Sign with the full role set. PR3 dual-shape writes BOTH the legacy
+     * {@code role} (single string, first element of the set) AND the
+     * new {@code roles} (array) claim. Parsers prefer the array.
+     */
+    public String sign(UUID userId, UUID vendorId, String email, Set<User.Role> roles, boolean mustChangePassword) {
         try {
             Instant now = Instant.now();
             Instant exp = now.plus(props.accessTokenTtl());
@@ -76,10 +100,22 @@ public class JwtService {
                     .expirationTime(Date.from(exp))
                     .jwtID(UUID.randomUUID().toString())
                     .claim("email", email)
-                    .claim("role", role.name())
                     .claim("mcp", mustChangePassword);
             if (vendorId != null) {
                 b.claim("vendor_id", vendorId.toString());
+            }
+            if (roles != null && !roles.isEmpty()) {
+                // Dual-shape: array (authoritative post-PR5) + single string
+                // (legacy back-compat, dropped in PR5).
+                List<String> roleNames = roles.stream()
+                        .map(User.Role::name)
+                        .toList();
+                b.claim("roles", roleNames);
+                b.claim("role", roleNames.get(0));
+            } else {
+                b.claim("roles", Collections.emptyList());
+                // No legacy `role` claim when the set is empty; downstream
+                // parsers treat absence as "no roles".
             }
             SignedJWT jwt = new SignedJWT(
                     new JWSHeader.Builder(JWSAlgorithm.HS256).build(),
@@ -113,14 +149,47 @@ public class JwtService {
                     .map(UUID::fromString)
                     .orElse(null);
             String email = c.getStringClaim("email");
-            String roleStr = c.getStringClaim("role");
-            User.Role role = roleStr != null ? User.Role.valueOf(roleStr) : User.Role.repartidor;
             boolean mustChangePassword = Boolean.TRUE.equals(c.getBooleanClaim("mcp"));
-            return new ParsedToken(userId, email, role, vendorId, mustChangePassword);
+
+            // Dual-shape parse: prefer `roles` array, fall back to `role`
+            // single string. The result is always a Set<User.Role>.
+            Set<User.Role> roles = new HashSet<>();
+            Object rolesClaim = c.getClaim("roles");
+            if (rolesClaim instanceof List<?> list) {
+                for (Object o : list) {
+                    if (o == null) continue;
+                    try {
+                        roles.add(User.Role.valueOf(o.toString()));
+                    } catch (IllegalArgumentException ignored) {
+                        // Unknown role name in token (e.g., a future role
+                        // added by migration after this build). Skip.
+                    }
+                }
+            }
+            if (roles.isEmpty()) {
+                String roleStr = c.getStringClaim("role");
+                if (roleStr != null) {
+                    try {
+                        roles.add(User.Role.valueOf(roleStr));
+                    } catch (IllegalArgumentException ignored) {
+                        // Unknown legacy role name; leave the set empty.
+                    }
+                }
+            }
+            return new ParsedToken(userId, email, roles, vendorId, mustChangePassword);
         } catch (ParseException | JOSEException e) {
             throw new TokenInvalidException("JWT parse failure: " + e.getMessage());
         }
     }
 
-    public record ParsedToken(UUID userId, String email, User.Role role, UUID vendorId, boolean mustChangePassword) {}
+    /**
+     * Parsed token. The role set is always present (possibly empty for
+     * legacy tokens whose claim was a name not in the current enum).
+     */
+    public record ParsedToken(UUID userId,
+                              String email,
+                              Set<User.Role> roles,
+                              UUID vendorId,
+                              boolean mustChangePassword) {
+    }
 }

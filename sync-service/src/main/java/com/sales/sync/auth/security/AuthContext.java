@@ -40,6 +40,19 @@ public class AuthContext {
         if (parsed == null) {
             throw new IllegalStateException("No authenticated user in this request");
         }
-        return parsed.role();
+        if (parsed.roles().isEmpty()) {
+            throw new IllegalStateException("Authenticated user has no roles");
+        }
+        return parsed.roles().iterator().next();
+    }
+
+    /**
+     * Returns the full multi-role set of the authenticated user.
+     */
+    public java.util.Set<User.Role> requireRoles() {
+        if (parsed == null) {
+            throw new IllegalStateException("No authenticated user in this request");
+        }
+        return parsed.roles();
     }
 }

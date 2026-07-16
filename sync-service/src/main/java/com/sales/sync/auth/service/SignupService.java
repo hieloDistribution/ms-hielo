@@ -5,8 +5,10 @@ import com.sales.sync.auth.admin.AuditEvent;
 import com.sales.sync.auth.dto.AuthResponse;
 import com.sales.sync.auth.dto.SignupRequest;
 import com.sales.sync.auth.model.RefreshToken;
+import com.sales.sync.auth.model.Role;
 import com.sales.sync.auth.model.User;
 import com.sales.sync.auth.repository.RefreshTokenRepository;
+import com.sales.sync.auth.repository.RoleRepository;
 import com.sales.sync.auth.repository.UserRepository;
 import com.sales.sync.auth.security.JwtProperties;
 import com.sales.sync.auth.security.JwtService;
@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -41,11 +44,18 @@ import java.util.UUID;
  *       {@code token_family}) is issued, matching the canonical
  *       refresh-token rotation model.</li>
  * </ul>
+ *
+ * <p>Shape B (PR2): the cliente role is loaded from the {@code roles}
+ * table via {@link RoleRepository}. If V6 has not run, signup fails fast
+ * with an {@link IllegalStateException}.
  */
 @Service
 public class SignupService {
 
+    private static final String CLIENTE_ROLE_NAME = "cliente";
+
     private final UserRepository users;
+    private final RoleRepository roles;
     private final RefreshTokenRepository tokens;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
@@ -54,6 +64,7 @@ public class SignupService {
     private final AdminAuditLogger auditLogger;
 
     public SignupService(UserRepository users,
+                         RoleRepository roles,
                          RefreshTokenRepository tokens,
                          PasswordEncoder passwordEncoder,
                          JwtService jwtService,
@@ -61,6 +72,7 @@ public class SignupService {
                          JwtProperties props,
                          AdminAuditLogger auditLogger) {
         this.users = users;
+        this.roles = roles;
         this.tokens = tokens;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
@@ -81,16 +93,18 @@ public class SignupService {
         // path; any other value (admin, repartidor, foo) is a bypass attempt.
         boolean bypassAttempt = req.role() != null
                 && !req.role().isBlank()
-                && !"cliente".equalsIgnoreCase(req.role());
+                && !CLIENTE_ROLE_NAME.equalsIgnoreCase(req.role());
+
+        Role clienteRole = roles.findByName(CLIENTE_ROLE_NAME)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Role '" + CLIENTE_ROLE_NAME + "' not seeded; V6 migration must run before signup"));
 
         User u = new User();
         u.setEmail(email);
         u.setPasswordHash(passwordEncoder.encode(req.password()));
         u.setLocked(false);
         u.setActive(true);
-        // Multi-role source of truth. setRoles() also keeps the legacy
-        // single-string role column in sync for the JWT cut-over window.
-        u.setRoles(java.util.Set.of(User.Role.cliente));
+        u.setRoles(java.util.Set.<Role>of(clienteRole));
 
         if (req.full_name() != null) u.setFullName(req.full_name());
         if (req.phone() != null) u.setPhone(req.phone());

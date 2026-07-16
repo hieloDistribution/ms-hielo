@@ -24,8 +24,13 @@ import java.util.UUID;
  * DriverContext is resolved separately by looking up the
  * {@code delivery_drivers} row whose {@code user_id} matches the JWT subject.
  *
- * <p>On any token failure the filter is silent — the {@code authenticationEntryPoint}
- * in {@link SecurityConfig} emits the canonical 401 body.
+ * <p>Authoritative role set comes from {@link JwtService.ParsedToken#roles()}
+ * (carrying the multi-role claim from the JWT, dual-shape-aware). Each
+ * role in the set becomes a {@code ROLE_*} Spring Security authority.
+ *
+ * <p>On any token failure the filter is silent — the
+ * {@code authenticationEntryPoint} in {@link SecurityConfig} emits
+ * the canonical 401 body.
  */
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -57,8 +62,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 JwtService.ParsedToken parsed = jwtService.parse(token);
                 List<SimpleGrantedAuthority> authorities = new ArrayList<>();
                 authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
-                if (parsed.role() != null) {
-                    String r = parsed.role().toLowerCase(Locale.ROOT);
+                for (Role role : parsed.roles()) {
+                    String r = role.name().toLowerCase(Locale.ROOT);
                     if ("admin".equals(r)) {
                         authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
                     } else if ("repartidor".equals(r)) {

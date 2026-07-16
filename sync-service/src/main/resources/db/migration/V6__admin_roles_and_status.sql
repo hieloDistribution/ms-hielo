@@ -1,50 +1,78 @@
 -- V6 owned by change admin-console (PR2 admin-bootstrap-seeder + PR3 admin-roles-gate).
 --
--- Adds multi-role support, soft-delete / activation flags, and optimistic
--- locking for the role-mutation surface.
+-- Shape: `roles` is a FIRST-CLASS TABLE (not an enum). Each known role is
+-- a row in `roles`; `user_roles` is a many-to-many join with FKs to both
+-- `users` and `roles`. This is a deliberate move away from the original
+-- design's enum-only shape: roles become data, not code, so future
+-- additions (custom role names, per-role metadata like description /
+-- icon / default permissions) are migrations or admin endpoints, not
+-- Java redeploys.
 --
--- Note on schema shape: this migration creates a join table
--- `user_roles(user_id, role)` instead of a Postgres-only `users.roles TEXT[]`
--- column. The design originally specified the array form, but the H2 test
--- profile used by sync-service (`application-test.yml`) does NOT support
--- `TEXT[]`. The join-table form is fully portable (Postgres + H2) and gives
--- the same `roles` multi-value semantics from the entity's perspective.
--- The design's intent (multi-role per user, GIN-indexable lookups) is
--- preserved: the `idx_user_roles_role` index serves the same `WHERE role = ?`
--- queries that the GIN index on `users.roles` would have served. PR3's
--- `RoleGateFilter` uses `idx_user_roles_role` instead of a GIN index.
+-- Backwards compatibility: the legacy single-string column `users.role`
+-- is preserved through the JWT cut-over window (PR3-PR5) and dropped
+-- in V8. The setRoles() / Role entity in Java keeps both columns in
+-- sync.
 --
--- The legacy `users.role` single-string column is preserved for the JWT
--- cut-over window (PR3-PR5). It is dropped in V8 (PR5).
+-- Idempotency: this migration is intended for first-time apply only.
+-- Re-running on a DB that already has the shape B tables is safe
+-- (DROP TABLE IF EXISTS guards the recreate; ON CONFLICT DO NOTHING
+-- guards the backfill).
 
--- 1. New join table for multi-role support.
-CREATE TABLE user_roles (
-    user_id  UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    role     VARCHAR(20)  NOT NULL,
-    PRIMARY KEY (user_id, role),
-    CONSTRAINT user_roles_role_chk CHECK (role IN ('admin', 'repartidor', 'cliente'))
+-- 1. Create the `roles` table — source of truth for role names and
+-- future metadata (description, default permissions, etc.).
+CREATE TABLE roles (
+    id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    name        VARCHAR(20)  NOT NULL UNIQUE,
+    description VARCHAR(500),
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    CONSTRAINT roles_name_chk CHECK (name IN ('admin', 'repartidor', 'cliente'))
 );
 
-CREATE INDEX idx_user_roles_role ON user_roles (role);
+CREATE INDEX idx_roles_name ON roles (name);
 
--- 2. Backfill user_roles from the existing users.role column for all
--- existing rows. ON CONFLICT DO NOTHING guards against double-insert if
--- the migration is re-run after a partial backfill.
-INSERT INTO user_roles (user_id, role)
-SELECT id, role FROM users
-ON CONFLICT (user_id, role) DO NOTHING;
+-- 2. Seed the three known roles. Future roles can be added by additional
+-- migrations or by a privileged admin endpoint (not in this change's
+-- scope). Description is human-readable, for the admin console UI.
+INSERT INTO roles (name, description) VALUES
+    ('admin',      'System administrator with full access to /api/v1/admin/**'),
+    ('repartidor', 'Distribution driver — accepts orders, reports GPS location'),
+    ('cliente',    'End customer — places and tracks orders');
 
--- 3. New columns on users.
+-- 3. Replace the old `user_roles(role VARCHAR)` join table with one
+-- that holds a FK to `roles.id`. The old shape (string role in the
+-- join table) was from the same PR2 schema, never released to
+-- production; safe to drop and recreate.
+DROP TABLE IF EXISTS user_roles;
+
+CREATE TABLE user_roles (
+    user_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role_id  UUID NOT NULL REFERENCES roles(id)  ON DELETE RESTRICT,
+    PRIMARY KEY (user_id, role_id)
+);
+
+CREATE INDEX idx_user_roles_role_id ON user_roles (role_id);
+
+-- 4. Backfill from the legacy `users.role` string column. For each
+-- existing user that has a non-null role string, look up the matching
+-- `roles.id` and insert a row into `user_roles`. ON CONFLICT DO
+-- NOTHING guards against double-insert if the migration is re-run.
+INSERT INTO user_roles (user_id, role_id)
+SELECT u.id, r.id
+FROM users u
+JOIN roles r ON r.name = u.role
+WHERE u.role IS NOT NULL
+ON CONFLICT (user_id, role_id) DO NOTHING;
+
+-- 5. New columns on users.
 ALTER TABLE users ADD COLUMN active                BOOLEAN     NOT NULL DEFAULT TRUE;
 ALTER TABLE users ADD COLUMN must_change_password  BOOLEAN     NOT NULL DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN version               BIGINT      NOT NULL DEFAULT 0;
 
--- 4. Drop the old single-string CHECK constraint on users.role. The
+-- 6. Drop the old single-string CHECK constraint on users.role. The
 -- `role` column itself stays for cut-over; the CHECK constraint
--- is no longer authoritative since `user_roles.role` is the source
--- of truth going forward.
+-- is no longer authoritative since `roles.name` is the source of
+-- truth going forward.
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_chk;
 
--- 5. Drop the old `idx_users_role` index since the array-of-roles
--- lookup now goes through `idx_user_roles_role`. Postgres-only.
+-- 7. Drop the old `idx_users_role` index.
 DROP INDEX IF EXISTS idx_users_role;

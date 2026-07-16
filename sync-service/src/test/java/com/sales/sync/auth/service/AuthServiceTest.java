@@ -3,6 +3,7 @@ package com.sales.sync.auth.service;
 import com.sales.sync.auth.dto.AuthResponse;
 import com.sales.sync.auth.dto.LoginRequest;
 import com.sales.sync.auth.model.RefreshToken;
+import com.sales.sync.auth.model.Role;
 import com.sales.sync.auth.model.User;
 import com.sales.sync.auth.repository.RefreshTokenRepository;
 import com.sales.sync.auth.repository.UserRepository;
@@ -26,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -36,8 +38,13 @@ import static org.mockito.Mockito.when;
  * must_change_password propagation into both the JWT (mcp claim) and
  * the {@link AuthResponse} body field.
  *
- * <p>Owner: change admin-console PR2. Spec reference: B2 of
+ * <p>Owner: change admin-console PR2 (shape B). Spec reference: B2 of
  * {@code openspec/changes/admin-console/specs/admin-bootstrap/spec.md}.
+ *
+ * <p>Shape B note: the {@code User.roles} collection holds {@link Role}
+ * entities (loaded from the {@code roles} table). The legacy
+ * {@code User.role} enum column is kept in sync by
+ * {@link User#setRoles(java.util.Set)} for the JWT cut-over window.
  */
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
@@ -53,6 +60,20 @@ class AuthServiceTest {
         return new AuthService(users, tokens, passwordEncoder, jwtService, refreshTokenCodec, props);
     }
 
+    private static Role adminRole() {
+        Role r = new Role();
+        r.setId(UUID.randomUUID());
+        r.setName("admin");
+        return r;
+    }
+
+    private static Role clienteRole() {
+        Role r = new Role();
+        r.setId(UUID.randomUUID());
+        r.setName("cliente");
+        return r;
+    }
+
     @Test
     @DisplayName("RED: bootstrap admin login -> JWT carries mcp=true and response carries must_change_password=true")
     void login_bootstrap_admin_propagates_mcp_flag() {
@@ -63,12 +84,12 @@ class AuthServiceTest {
         u.setLocked(false);
         u.setActive(true);
         u.setMustChangePassword(true);
-        u.setRoles(Set.of(User.Role.admin)); // multi-role source of truth
+        u.setRoles(Set.of(adminRole())); // shape B: Role entity from roles table
 
         when(users.findByEmail("bootstrap-admin@hielo.local")).thenReturn(Optional.of(u));
         when(passwordEncoder.matches(any(), eq("bcrypt-hash"))).thenReturn(true);
         when(tokens.findActiveFamilyByUserId(u.getId())).thenReturn(Optional.empty());
-        when(jwtService.sign(any(), any(), eq("bootstrap-admin@hielo.local"), eq(User.Role.admin), eq(true)))
+        when(jwtService.sign(eq(u.getId()), any(), eq("bootstrap-admin@hielo.local"), eq(User.Role.admin), eq(true)))
                 .thenReturn("signed-jwt-with-mcp-true");
         when(props.accessTokenTtl()).thenReturn(Duration.ofMinutes(15));
         when(refreshTokenCodec.generate()).thenReturn(
@@ -79,7 +100,6 @@ class AuthServiceTest {
 
         assertThat(resp.must_change_password()).isTrue();
         assertThat(resp.access_token()).isEqualTo("signed-jwt-with-mcp-true");
-        // Verify jwtService.sign was called with mustChangePassword=true.
         verify(jwtService).sign(
                 eq(u.getId()), any(), eq("bootstrap-admin@hielo.local"), eq(User.Role.admin), eq(true));
     }
@@ -94,12 +114,12 @@ class AuthServiceTest {
         u.setLocked(false);
         u.setActive(true);
         u.setMustChangePassword(false);
-        u.setRoles(Set.of(User.Role.cliente)); // multi-role source of truth
+        u.setRoles(Set.of(clienteRole()));
 
         when(users.findByEmail("normal@hielo.local")).thenReturn(Optional.of(u));
         when(passwordEncoder.matches(any(), eq("bcrypt-hash"))).thenReturn(true);
         when(tokens.findActiveFamilyByUserId(u.getId())).thenReturn(Optional.empty());
-        when(jwtService.sign(any(), any(), eq("normal@hielo.local"), eq(User.Role.cliente), eq(false)))
+        when(jwtService.sign(eq(u.getId()), any(), eq("normal@hielo.local"), eq(User.Role.cliente), eq(false)))
                 .thenReturn("signed-jwt-without-mcp");
         when(props.accessTokenTtl()).thenReturn(Duration.ofMinutes(15));
         when(refreshTokenCodec.generate()).thenReturn(
@@ -122,7 +142,9 @@ class AuthServiceTest {
         assertThatThrownBy(() -> svc.login(new LoginRequest("nobody@hielo.local", "any")))
                 .isInstanceOf(InvalidCredentialsException.class);
 
-        verify(jwtService, never()).sign(any(), any(), any(), any(), anyBoolean());
+        // Both sign overloads (single-role and Set<Role>) must NOT have been called.
+        verify(jwtService, never()).sign(any(), any(), any(), any(User.Role.class), anyBoolean());
+        verify(jwtService, never()).sign(any(), any(), any(), anySet(), anyBoolean());
         verify(tokens, never()).save(any(RefreshToken.class));
     }
 }

@@ -1,6 +1,8 @@
 package com.sales.sync.auth.admin;
 
+import com.sales.sync.auth.model.Role;
 import com.sales.sync.auth.model.User;
+import com.sales.sync.auth.repository.RoleRepository;
 import com.sales.sync.auth.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,7 +39,8 @@ import java.util.UUID;
  *       nothing. Used in CI to keep credentials out of build logs.</li>
  * </ul>
  *
- * <p>Owner: change {@code admin-console} PR2.
+ * <p>Owner: change {@code admin-console} PR2 (shape B — uses
+ * {@code Role} entity from the {@code roles} table seeded by V6).
  */
 @Component
 @EnableConfigurationProperties(AdminBootstrapProperties.class)
@@ -46,15 +49,18 @@ public class AdminBootstrap implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(AdminBootstrap.class);
 
     private final UserRepository users;
+    private final RoleRepository roles;
     private final PasswordEncoder passwordEncoder;
     private final RandomPasswordGenerator passwordGenerator;
     private final AdminBootstrapProperties props;
 
     public AdminBootstrap(UserRepository users,
+                          RoleRepository roles,
                           PasswordEncoder passwordEncoder,
                           RandomPasswordGenerator passwordGenerator,
                           AdminBootstrapProperties props) {
         this.users = users;
+        this.roles = roles;
         this.passwordEncoder = passwordEncoder;
         this.passwordGenerator = passwordGenerator;
         this.props = props;
@@ -68,7 +74,7 @@ public class AdminBootstrap implements ApplicationRunner {
             return;
         }
 
-        long activeAdminCount = users.countActiveByRole(User.Role.admin);
+        long activeAdminCount = users.countActiveByRoleName("admin");
 
         String recoverEmail = (props.getRecoverEmail() == null || props.getRecoverEmail().isBlank())
                 ? null
@@ -95,6 +101,10 @@ public class AdminBootstrap implements ApplicationRunner {
             return;
         }
 
+        Role adminRole = roles.findByName("admin")
+                .orElseThrow(() -> new IllegalStateException(
+                        "Role 'admin' not seeded; V6 migration must run before bootstrap can fire"));
+
         String cleartextPassword = passwordGenerator.generate(16);
         User u = new User();
         u.setEmail(email);
@@ -102,9 +112,7 @@ public class AdminBootstrap implements ApplicationRunner {
         u.setLocked(false);
         u.setActive(true);
         u.setMustChangePassword(true);
-        // Multi-role source of truth. The legacy `role` column is kept in
-        // sync by User.setRoles() for the JWT cut-over window (PR3-PR5).
-        u.setRoles(Set.of(User.Role.admin));
+        u.setRoles(java.util.Set.<Role>of(adminRole));
         users.save(u);
 
         // Print credentials to stdout ONLY. Never to logback (which may

@@ -1,14 +1,14 @@
 package com.sales.sync.auth.model;
 
-import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
-import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -24,9 +24,10 @@ import java.util.UUID;
  * Persistent user row.
  *
  * <p>Multi-role support: the {@link #roles} collection is the source of
- * truth and is mapped to the {@code user_roles} join table (V6 migration).
- * The legacy single-string {@link #role} column is kept for the JWT
- * cut-over window (PR3 through PR5); it is dropped in V8.
+ * truth and is mapped to the {@code user_roles} join table (V6
+ * migration, shape B). Each role is a full {@link Role} entity row
+ * in the {@code roles} table — not a string enum — so future role
+ * additions are migrations, not Java redeploys.
  *
  * <p>Soft-delete: {@link #active} is the source of truth for whether a
  * user can log in or be touched by admin endpoints. {@link #locked} is
@@ -35,11 +36,23 @@ import java.util.UUID;
  *
  * <p>Optimistic locking: {@link #version} is incremented on every JPA
  * save and checked in concurrent updates to the same row.
+ *
+ * <p>The legacy single-string column {@link #role} is kept deprecated
+ * for the JWT cut-over window (PR3-PR5). It is dropped in V8.
  */
 @Entity
 @Table(name = "users")
 public class User {
 
+    /**
+     * Code-side enum of the role names seeded by V6. Used by
+     * {@link com.sales.sync.auth.security.JwtService} when constructing
+     * the {@code role} JWT claim, and by PR3's RoleGateFilter when
+     * mapping roles to Spring Security authorities. The enum is the
+     * code-side mirror of the {@link Role#getName()} strings; new roles
+     * added via migrations can be referenced through
+     * {@code User.Role.valueOf(role.getName())}.
+     */
     public enum Role {
         admin, repartidor, cliente
     }
@@ -71,17 +84,22 @@ public class User {
 
     /**
      * Multi-role source of truth. Mapped to the {@code user_roles} join
-     * table via V6. Always loaded eagerly because the role set is read on
-     * every authenticated request.
+     * table (V6 migration, shape B). Always loaded eagerly because the
+     * role set is read on every authenticated request.
+     *
+     * <p>NOTE: the field type uses the FQN
+     * {@link com.sales.sync.auth.model.Role} to disambiguate from the
+     * nested {@link Role} enum declared above. Without the FQN, the
+     * compiler resolves {@code Set<Role>} to {@code Set<User.Role>},
+     * which is the legacy single-string enum.
      */
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
             name = "user_roles",
-            joinColumns = @JoinColumn(name = "user_id")
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "role_id")
     )
-    @Enumerated(EnumType.STRING)
-    @Column(name = "role", length = 20, nullable = false)
-    private Set<Role> roles = new HashSet<>(Set.of(Role.cliente));
+    private Set<com.sales.sync.auth.model.Role> roles = new HashSet<>();
 
     @Column(name = "active", nullable = false)
     private boolean active = true;
@@ -139,9 +157,6 @@ public class User {
         if (createdAt == null) createdAt = now;
         updatedAt = now;
         if (role == null) role = Role.cliente;
-        if (roles == null || roles.isEmpty()) {
-            roles = new HashSet<>(Set.of(Role.cliente));
-        }
     }
 
     @PreUpdate
@@ -168,12 +183,22 @@ public class User {
     @Deprecated
     public void setRole(Role role) { this.role = role; }
 
-    public Set<Role> getRoles() { return roles; }
-    public void setRoles(Set<Role> roles) {
+    public Set<com.sales.sync.auth.model.Role> getRoles() { return roles; }
+    public void setRoles(Set<com.sales.sync.auth.model.Role> roles) {
         this.roles = (roles == null) ? new HashSet<>() : new HashSet<>(roles);
-        // Keep legacy column in sync for the cut-over window. Removed in V8.
+        // Keep the legacy single-string column in sync for the JWT cut-over
+        // window. Removed in V8. We pick the first role name as the
+        // "primary" — JWT carries a single role claim until PR5 cut-over.
         if (!this.roles.isEmpty()) {
-            this.role = this.roles.iterator().next();
+            com.sales.sync.auth.model.Role first = this.roles.iterator().next();
+            try {
+                this.role = User.Role.valueOf(first.getName());
+            } catch (IllegalArgumentException ignored) {
+                // Role name from DB is not in the User.Role enum (e.g.,
+                // a future role added by migration). Leave the legacy
+                // column as-is — JwtService uses the multi-role set for
+                // claim construction post-PR3 anyway.
+            }
         }
     }
 

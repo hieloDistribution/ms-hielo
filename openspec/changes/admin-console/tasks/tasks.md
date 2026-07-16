@@ -153,6 +153,7 @@ Forecast: **150-200 LOC diff + V6 migration**. Covers B1, B2, B3.
 Forecast: **250-300 LOC diff**. Covers B4, R2. Dual-shape JWT issuance and parsing.
 
 ### PR3-1: Update JwtService.sign to write both claims
+- **Status**: ✅ DONE 2026-07-16.
 
 - **Type**: GREEN.
 - **File**: `sync-service/src/main/java/com/sales/sync/auth/security/JwtService.java`.
@@ -160,6 +161,7 @@ Forecast: **250-300 LOC diff**. Covers B4, R2. Dual-shape JWT issuance and parsi
 - **Evidence**: `mvn -pl sync-service test` passes; decoding the resulting JWT at jwt.io shows both `role` and `roles`.
 
 ### PR3-2: Update JwtService.parse to dual-shape
+- **Status**: ✅ DONE 2026-07-16.
 
 - **Type**: RED + GREEN.
 - **File**: `sync-service/src/main/java/com/sales/sync/auth/security/JwtService.java`, `test/.../JwtServiceTest.java`.
@@ -167,6 +169,7 @@ Forecast: **250-300 LOC diff**. Covers B4, R2. Dual-shape JWT issuance and parsi
 - **Evidence**: `mvn -pl sync-service test` passes.
 
 ### PR3-3: Mirror dual-shape in order-service JwtService
+- **Status**: ✅ DONE 2026-07-16.
 
 - **Type**: GREEN.
 - **File**: `order-service/src/main/java/com/sales/order/auth/security/JwtService.java`.
@@ -174,6 +177,7 @@ Forecast: **250-300 LOC diff**. Covers B4, R2. Dual-shape JWT issuance and parsi
 - **Evidence**: `mvn -pl order-service test` passes.
 
 ### PR3-4: Update JwtAuthenticationFilter (both services) to map roles set
+- **Status**: ✅ DONE 2026-07-16.
 
 - **Type**: GREEN.
 - **Files**: `sync-service/src/main/java/com/sales/sync/auth/security/JwtAuthenticationFilter.java`, `order-service/src/main/java/com/sales/order/auth/security/JwtAuthenticationFilter.java`.
@@ -181,6 +185,7 @@ Forecast: **250-300 LOC diff**. Covers B4, R2. Dual-shape JWT issuance and parsi
 - **Evidence**: existing auth tests pass.
 
 ### PR3-5: RED test — non-admin gets 403 on /api/v1/admin/**
+- **Status**: ✅ DONE 2026-07-16.
 
 - **Type**: RED.
 - **File**: `sync-service/src/test/java/com/sales/sync/auth/admin/AdminRoleGateFilterTest.java` (new).
@@ -188,6 +193,7 @@ Forecast: **250-300 LOC diff**. Covers B4, R2. Dual-shape JWT issuance and parsi
 - **Evidence**: `mvn -pl sync-service test -Dtest=AdminRoleGateFilterTest` fails on filter not implemented.
 
 ### PR3-6: GREEN — implement AdminRoleGateFilter
+- **Status**: ✅ DONE 2026-07-16.
 
 - **Type**: GREEN.
 - **Files**: `sync-service/src/main/java/com/sales/sync/auth/admin/AdminRoleGateFilter.java`, `RoleRequeryService.java`, `AdminContext.java`.
@@ -195,6 +201,7 @@ Forecast: **250-300 LOC diff**. Covers B4, R2. Dual-shape JWT issuance and parsi
 - **Evidence**: `mvn -pl sync-service test -Dtest=AdminRoleGateFilterTest` passes.
 
 ### PR3-7: TRIANGULATE — deactivated admin gets 403
+- **Status**: ✅ DONE 2026-07-16.
 
 - **Type**: TRIANGULATE.
 - **File**: `sync-service/src/test/java/com/sales/sync/auth/admin/AdminRoleGateFilterTest.java`.
@@ -202,6 +209,7 @@ Forecast: **250-300 LOC diff**. Covers B4, R2. Dual-shape JWT issuance and parsi
 - **Evidence**: `mvn -pl sync-service test -Dtest=AdminRoleGateFilterTest` passes.
 
 ### PR3-8: TRIANGULATE — must_change_password user gets 403 only for admin paths
+- **Status**: ✅ DONE 2026-07-16.
 
 - **Type**: TRIANGULATE.
 - **File**: `sync-service/src/test/java/com/sales/sync/auth/admin/AdminRoleGateFilterTest.java`.
@@ -209,6 +217,7 @@ Forecast: **250-300 LOC diff**. Covers B4, R2. Dual-shape JWT issuance and parsi
 - **Evidence**: `mvn -pl sync-service test -Dtest=AdminRoleGateFilterTest` passes 3 tests.
 
 ### PR3-9: REFACTOR — extract LastAdminGuard stub
+- **Status**: ✅ DONE 2026-07-16.
 
 - **Type**: REFACTOR.
 - **Files**: `sync-service/src/main/java/com/sales/sync/auth/admin/LastAdminGuard.java` (stub).

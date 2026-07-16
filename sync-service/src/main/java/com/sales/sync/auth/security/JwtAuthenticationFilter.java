@@ -11,15 +11,24 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Reads {@code Authorization: Bearer <token>}, validates it via
  * {@link JwtService}, populates the {@link SecurityContextHolder} and
- * stashes the userId/role/vendorId into the request-scoped {@link AuthContext}.
- * On any token failure the filter is silent — the {@code authenticationEntryPoint}
- * in {@link SecurityConfig} emits the canonical 401 body.
+ * stashes the {@code vendor_id} claim into {@link VendorContext}.
+ *
+ * <p>Authoritative role set comes from {@link JwtService.ParsedToken#roles()}
+ * (carrying the multi-role claim from the JWT, dual-shape-aware). Each
+ * role in the set becomes a {@code ROLE_*} Spring Security authority.
+ *
+ * <p>On any token failure the filter is silent — the
+ * {@code authenticationEntryPoint} in {@link SecurityConfig} emits
+ * the canonical 401 body.
  */
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -28,11 +37,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String PREFIX = "Bearer ";
 
     private final JwtService jwtService;
-    private final AuthContext authContext;
+    private final VendorContext vendorContext;
 
-    public JwtAuthenticationFilter(JwtService jwtService, AuthContext authContext) {
+    public JwtAuthenticationFilter(JwtService jwtService,
+                                   VendorContext vendorContext) {
         this.jwtService = jwtService;
-        this.authContext = authContext;
+        this.vendorContext = vendorContext;
     }
 
     @Override
@@ -45,23 +55,33 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = header.substring(PREFIX.length()).trim();
             try {
                 JwtService.ParsedToken parsed = jwtService.parse(token);
-                var authorities = List.of(
-                        new SimpleGrantedAuthority("ROLE_" + parsed.role().name().toUpperCase()));
+                List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+                authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+                for (com.sales.sync.auth.model.User.Role role : parsed.roles()) {
+                    String r = role.name().toLowerCase(Locale.ROOT);
+                    if ("admin".equals(r)) {
+                        authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+                    } else if ("repartidor".equals(r)) {
+                        authorities.add(new SimpleGrantedAuthority("ROLE_REPARTIDOR"));
+                    } else if ("cliente".equals(r)) {
+                        authorities.add(new SimpleGrantedAuthority("ROLE_CLIENTE"));
+                    }
+                }
                 var auth = new UsernamePasswordAuthenticationToken(
                         parsed.userId(),
                         null,
                         authorities);
                 SecurityContextHolder.getContext().setAuthentication(auth);
-                authContext.set(parsed);
+                vendorContext.set(Optional.ofNullable(parsed.vendorId()));
             } catch (TokenInvalidException | TokenExpiredException ex) {
                 SecurityContextHolder.clearContext();
-                authContext.clear();
+                vendorContext.set(Optional.empty());
             }
         }
         try {
             chain.doFilter(request, response);
         } finally {
-            authContext.clear();
+            vendorContext.set(Optional.empty());
         }
     }
 }

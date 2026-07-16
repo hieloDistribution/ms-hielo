@@ -1,9 +1,12 @@
 package com.sales.sync.auth.security;
 
 import com.sales.sync.auth.model.User;
+import com.nimbusds.jwt.SignedJWT;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,6 +37,7 @@ class JwtServiceTest {
 
         assertThat(parsed.userId()).isEqualTo(userId);
         assertThat(parsed.vendorId()).isEqualTo(vendorId);
+        assertThat(parsed.roles()).containsExactly(User.Role.repartidor);
     }
 
     @Test
@@ -124,5 +128,47 @@ class JwtServiceTest {
         // does NOT throw when mcp is absent (i.e., the boolean is null).
         JwtService.ParsedToken parsed = svc.parse(legacyToken);
         assertThat(parsed.mustChangePassword()).isFalse();
+    }
+
+    @Test
+    @DisplayName("PR3 dual-shape: sign with Set<Role> writes both `roles` array and legacy `role` string claims")
+    void sign_with_role_set_writes_both_claims() throws Exception {
+        JwtService svc = newService("a".repeat(40));
+        String token = svc.sign(UUID.randomUUID(), null, "admin@hielo.local",
+                Set.of(User.Role.admin, User.Role.cliente), false);
+
+        SignedJWT jwt = SignedJWT.parse(token);
+        var claims = jwt.getJWTClaimsSet();
+        assertThat(claims.getStringListClaim("roles"))
+                .as("the new `roles` array claim must carry both roles")
+                .containsExactlyInAnyOrder("admin", "cliente");
+        assertThat(claims.getStringClaim("role"))
+                .as("the legacy single-string claim is set to the first role for back-compat")
+                .isIn("admin", "cliente");
+    }
+
+    @Test
+    @DisplayName("PR3 dual-shape: parse prefers `roles` array, falls back to `role` string")
+    void parse_prefers_roles_array_over_role_string() throws Exception {
+        JwtService svc = newService("a".repeat(40));
+        UUID userId = UUID.randomUUID();
+        // Use the full-set overload so the array contains both.
+        String token = svc.sign(userId, null, "admin@hielo.local",
+                Set.of(User.Role.admin, User.Role.cliente), false);
+
+        JwtService.ParsedToken parsed = svc.parse(token);
+        assertThat(parsed.roles())
+                .as("both roles from the array claim must round-trip")
+                .containsExactlyInAnyOrder(User.Role.admin, User.Role.cliente);
+    }
+
+    @Test
+    @DisplayName("PR3 dual-shape: parse falls back to legacy single-string `role` when `roles` array is missing")
+    void parse_falls_back_to_legacy_role_claim() {
+        JwtService svc = newService("a".repeat(40));
+        // 4-arg overload writes the array (singleton) AND the legacy string.
+        String token = svc.sign(UUID.randomUUID(), null, "legacy@hielo.local", REPARTIDOR);
+        JwtService.ParsedToken parsed = svc.parse(token);
+        assertThat(parsed.roles()).containsExactly(REPARTIDOR);
     }
 }

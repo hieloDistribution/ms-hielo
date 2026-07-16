@@ -59,7 +59,8 @@ class JwtAuthenticationFilterTest {
         UUID userId = UUID.randomUUID();
         UUID vendorId = UUID.randomUUID();
         when(jwtService.parse("good-token"))
-                .thenReturn(new JwtService.ParsedToken(userId, vendorId, null));
+                .thenReturn(new JwtService.ParsedToken(userId, vendorId,
+                            java.util.Set.of(Role.cliente), false));
 
         MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/v1/orders/catalog");
         req.addHeader("Authorization", "Bearer good-token");

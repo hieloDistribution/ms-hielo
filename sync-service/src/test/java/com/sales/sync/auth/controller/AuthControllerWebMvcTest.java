@@ -4,10 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sales.sync.auth.dto.AuthResponse;
 import com.sales.sync.auth.repository.RefreshTokenRepository;
 import com.sales.sync.auth.security.AccountLockedException;
+import com.sales.sync.auth.admin.RoleRequeryService;
 import com.sales.sync.auth.security.AuthContext;
 import com.sales.sync.auth.security.InvalidCredentialsException;
 import com.sales.sync.auth.security.JwtService;
 import com.sales.sync.auth.security.SecurityConfig;
+import com.sales.sync.auth.security.VendorContext;
 import com.sales.sync.auth.service.AuthService;
 import com.sales.sync.auth.service.RefreshRotationService;
 import com.sales.sync.auth.service.SignupService;
@@ -43,6 +45,8 @@ class AuthControllerWebMvcTest {
     @MockBean PasswordEncoder passwordEncoder;
     @MockBean JwtService jwtService;
     @MockBean AuthContext authContext;
+    @MockBean com.sales.sync.auth.security.VendorContext vendorContext;
+    @MockBean com.sales.sync.auth.admin.RoleRequeryService roleRequeryService;
 
     @Test
     void login_valid_returns_200_with_tokens_and_expires_in_900() throws Exception {

@@ -13,6 +13,7 @@ import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Validates the JWT passed in the {@code token} query parameter of the
@@ -47,7 +48,12 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
         try {
             JwtService.ParsedToken parsed = jwtService.parse(token);
             attributes.put("userId", parsed.userId().toString());
-            attributes.put("role", parsed.role().name());
+            String firstRoleName = parsed.roles().isEmpty()
+                    ? ""
+                    : parsed.roles().iterator().next().name();
+            attributes.put("role", firstRoleName);
+            attributes.put("roles",
+                    parsed.roles().stream().map(Enum::name).collect(Collectors.joining(",")));
             attributes.put("email", parsed.email());
             return true;
         } catch (TokenInvalidException | TokenExpiredException ex) {
