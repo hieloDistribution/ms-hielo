@@ -10,7 +10,9 @@ public enum ErrorCode {
     ACCOUNT_LOCKED("account_locked"),
     TOKEN_EXPIRED("token_expired"),
     TOKEN_REVOKED("token_revoked"),
-    INVALID_REQUEST("invalid_request");
+    INVALID_REQUEST("invalid_request"),
+    EMAIL_ALREADY_EXISTS("email_already_exists"),
+    ORDER_SERVICE_UNAVAILABLE("order_service_unavailable");
 
     private final String body;
 

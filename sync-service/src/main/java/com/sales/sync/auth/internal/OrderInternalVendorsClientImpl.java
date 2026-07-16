@@ -56,4 +56,21 @@ public class OrderInternalVendorsClientImpl implements OrderInternalVendorsClien
                             + " while consulting active-vendor for " + userId, ex);
         }
     }
+
+    @Override
+    public void createVendor(UUID id, UUID userId, String displayName, String email, String phone) {
+        try {
+            restClient.post()
+                    .uri("/internal/vendors")
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .body(new InternalVendorDto(id, userId, displayName, email, phone))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (Exception ex) {
+            throw new OrderServiceUnavailable(
+                    "order-service unreachable or failed while provisioning vendor for " + userId, ex);
+        }
+    }
+
+    private record InternalVendorDto(UUID id, UUID userId, String displayName, String email, String phone) {}
 }

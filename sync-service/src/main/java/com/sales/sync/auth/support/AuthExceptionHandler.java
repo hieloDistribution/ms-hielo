@@ -1,5 +1,6 @@
 package com.sales.sync.auth.support;
 
+import com.sales.sync.auth.internal.OrderServiceUnavailable;
 import com.sales.sync.auth.security.AccountLockedException;
 import com.sales.sync.auth.security.InvalidCredentialsException;
 import com.sales.sync.auth.security.TokenExpiredException;
@@ -54,5 +55,13 @@ public class AuthExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("error", ErrorCode.INVALID_REQUEST.body()));
+    }
+
+    @ExceptionHandler(OrderServiceUnavailable.class)
+    public ResponseEntity<Map<String, String>> onOrderServiceUnavailable(OrderServiceUnavailable ex) {
+        LOG.error("order-service unavailable during signup: {}", ex.getMessage(), ex);
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("error", ErrorCode.ORDER_SERVICE_UNAVAILABLE.body()));
     }
 }

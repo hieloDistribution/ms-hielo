@@ -14,6 +14,7 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
     baseline-version: 0
+    validate-on-migrate: false
   jpa:
     hibernate:
       # PR-1 deviation from design D-07: keep `none` (not `validate`) because
@@ -50,3 +51,8 @@ hielo:
       read-timeout: 2s                                             # D-14 — combined budget 3s
       service-token: ${SYNC_SERVICE_TOKEN:}                        # R-3; no default (fail-fast on missing env)
       enabled: true                                                # set false + stub in tests if needed
+  # ---- PR-2b reverse-direction: order-service validates bearer token from sync-service ----
+  order:
+    internal:
+      internal-service-token: ${SYNC_SERVICE_TOKEN:}              # shared secret — same env var, both directions
+

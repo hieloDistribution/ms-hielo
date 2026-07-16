@@ -23,4 +23,9 @@ public interface OrderInternalVendorsClient {
      *         returns a non-success status (caller treats this as fail-closed)
      */
     boolean hasActiveVendorForUser(UUID userId);
+
+    /**
+     * Provisions a new Vendor record in order-service.
+     */
+    void createVendor(UUID id, UUID userId, String displayName, String email, String phone);
 }
