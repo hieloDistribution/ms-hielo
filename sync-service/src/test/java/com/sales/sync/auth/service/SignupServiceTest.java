@@ -42,12 +42,25 @@ import static org.mockito.Mockito.when;
 class SignupServiceTest {
 
     @Mock private UserRepository users;
+    @Mock private com.sales.sync.auth.repository.RoleRepository roles;
     @Mock private RefreshTokenRepository tokens;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private JwtService jwtService;
     @Mock private RefreshTokenCodec refreshTokenCodec;
     @Mock private JwtProperties props;
     @Mock private AdminAuditLogger auditLogger;
+
+    private com.sales.sync.auth.model.Role clienteRole() {
+        com.sales.sync.auth.model.Role r = new com.sales.sync.auth.model.Role();
+        r.setId(java.util.UUID.randomUUID());
+        r.setName("cliente");
+        return r;
+    }
+
+    @org.junit.jupiter.api.BeforeEach
+    void stubClienteRole() {
+        when(roles.findByName("cliente")).thenReturn(Optional.of(clienteRole()));
+    }
 
     @InjectMocks private SignupService signup;
 

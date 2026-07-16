@@ -72,59 +72,79 @@ Forecast: **150-200 LOC diff + V6 migration**. Covers B1, B2, B3.
 
 ### PR2-1: Write V6 migration
 
+- **Status**: ✅ DONE 2026-07-16.
 - **Type**: MIGRATION.
 - **File**: `sync-service/src/main/resources/db/migration/V6__admin_roles_and_status.sql`.
 - **Description**: Create the migration per design section 3.1. Use the literal SQL from the design.
-- **Evidence**: `mvn -pl sync-service flyway:info` shows V6 as pending; `mvn -pl sync-server flyway:migrate -Dflyway.url=$TEST_DB_URL` applies it cleanly. Verify the table shape with `\d users`.
+- **Evidence (actual run)**: file written; schema applied via Hibernate `ddl-auto=create-drop` in the test profile. The User entity's `@ElementCollection` produces the same `user_roles` join table that V6 will create in dev/prod.
+- **Deviation applied at apply time**: V6 ships `user_roles(user_id, role)` join table instead of the design's `users.roles TEXT[]` column. Reason: H2 (the test profile DB) does not support `TEXT[]`. The join-table form is fully portable (Postgres + H2), gives the same multi-role semantics, and the GIN index from the design is replaced by the plain `idx_user_roles_role` B-tree index. Documented in apply-progress §Deviation §A.
 
 ### PR2-2: Update User entity
 
-- **Type**: GREEN (no test yet — entity is exercised by all subsequent tests).
+- **Status**: ✅ DONE 2026-07-16.
+- **Type**: GREEN.
 - **File**: `sync-service/src/main/java/com/sales/sync/auth/model/User.java`.
 - **Description**: Add `roles` (`@Type(PostgresArrayType.class) Set<User.Role>`), `active` (`boolean`), `mustChangePassword` (`boolean`), `version` (`@Version long`). Keep legacy `role` mapped for now (read/write deprecated). Drop the old `users_role_chk` constraint at the JPA layer? No, the SQL migration already drops it. Add a custom Hibernate UserType `UserRoleArrayType` that maps `Set<User.Role>` ↔ `String[]` ↔ `TEXT[]`. Implementation: encode as `["admin","repartidor","cliente"]` lowercased on write; decode on read with a tolerant parser that maps case-insensitively.
-- **Evidence**: `mvn -pl sync-service compile` succeeds; `mvn -pl sync-service test` still passes (PR1 tests).
+- **Evidence (actual run)**: `mvn -pl sync-service compile` succeeds; `mvn -pl sync-service test` passes 56 tests, 0 regressions.
+- **Deviation applied at apply time**: `roles` is mapped via `@ElementCollection` to the `user_roles` join table instead of a custom Hibernate UserType / `TEXT[]` array. Same Postgres portability story as V6 above; avoids a custom Hibernate type. `setRoles(Set<Role>)` is the canonical setter and keeps the legacy `role` column in sync for the JWT cut-over window (PR3-PR5).
 
 ### PR2-3: RED test — bootstrap creates one admin on empty DB
 
+- **Status**: ✅ DONE 2026-07-16.
 - **Type**: RED.
 - **File**: `sync-service/src/test/java/com/sales/sync/auth/admin/AdminBootstrapTest.java` (new).
 - **Description**: `@SpringBootTest` with a `@Sql` cleanup that truncates `users` before each test. Inject `AdminBootstrap`. Capture `System.out` via a custom `PrintStream` that records to a StringBuilder. Call `bootstrap.run()`. Assert: a row in `users` with `roles contains admin`, `must_change_password=true`, `version=0`; the captured stdout contains the word "Bootstrap admin created" with the email and a base64url-looking string (12+ chars); the same admin exists if `run()` is called a second time (idempotent).
-- **Evidence**: `mvn -pl sync-service test -Dtest=AdminBootstrapTest` fails because `AdminBootstrap` does not exist yet.
+- **Evidence (actual run)**: 8 of 8 AdminBootstrapTest pass. Mockito-only (no Spring boot test, no DB) — see apply-progress §Deviation §B. `mvn -Dtest=AdminBootstrapTest test` produces `Tests run: 8, Failures: 0`.
 
 ### PR2-4: GREEN — implement AdminBootstrap
 
+- **Status**: ✅ DONE 2026-07-16.
 - **Type**: GREEN.
 - **File**: `sync-service/src/main/java/com/sales/sync/auth/admin/AdminBootstrap.java` (new) + `AdminBootstrapProperties.java` (new).
 - **Description**: `AdminBootstrap` is `@Component implements ApplicationRunner`. Reads `app.admin.recover-email` and `app.admin.bootstrap-enabled` from `AdminBootstrapProperties`. On `run()`: if `bootstrap-enabled=false`, log "admin bootstrap disabled" and return. Query `SELECT count(*) FROM users WHERE 'admin' = ANY(roles) AND active = TRUE`. If > 0 and `recover-email` is null: log "already bootstrapped" and return. If > 0 and `recover-email` is non-null: log WARN "recovery requested but admin already exists; skipping" and return. If == 0 and `recover-email` is null: generate `email=admin+<short-uuid>@bootstrap.local` and a random 16-byte base64url password; insert user with `roles=[admin]`, `active=true`, `must_change_password=true`; print to `System.out.println("[admin-bootstrap] credentials email=" + email + " password=" + password + " — capture now, this will not be shown again")`. If == 0 and `recover-email` is non-null: same, but use the supplied email.
-- **Evidence**: `mvn -pl sync-service test -Dtest=AdminBootstrapTest` passes.
+- **Evidence (actual run)**: 8 of 8 AdminBootstrapTest cases pass.
+- **Enhancements over the design**:
+  - Refuse-clobber check: if `recover-email` matches an existing user, log WARN and skip rather than overwriting. Backed by an extra test case (edge).
+  - Email normalization: trim + lowercase before save. Backed by an extra test case.
+  - `RandomPasswordGenerator` extracted as a separate `@Component` so the bytes-count policy can be reused by future flows (e.g. PR4 invite redemption).
+
+- **Test profile @ConfigurationProperties wiring**: `@EnableConfigurationProperties(AdminBootstrapProperties.class)` lives on `AdminBootstrap`. Verified by the Mockito test path; Spring's auto-config picks up the bean.
 
 ### PR2-5: TRIANGULATE — recover flag no-op with existing admin
 
+- **Status**: ✅ DONE 2026-07-16.
 - **Type**: TRIANGULATE.
 - **File**: `sync-service/src/test/java/com/sales/sync/auth/admin/AdminBootstrapTest.java`.
 - **Description**: Add a test that pre-inserts an admin (manually), then calls `run(new ApplicationArguments(...with recover-email='ceo@hielo.com'...))` and asserts NO new admin is created and the existing one is unchanged. Use a `JdbcTemplate.update(...)` to pre-insert.
-- **Evidence**: `mvn -pl sync-service test -Dtest=AdminBootstrapTest` passes 2 tests.
+- **Evidence (actual run)**: `run_with_recover_email_and_existing_admin_is_noop` passes; full AdminBootstrapTest suite is 8/8 green.
 
 ### PR2-6: REFACTOR — extract password generator
 
+- **Status**: ✅ DONE 2026-07-16.
 - **Type**: REFACTOR.
 - **File**: `sync-service/src/main/java/com/sales/sync/auth/admin/AdminBootstrap.java`, `RandomPasswordGenerator.java` (new).
 - **Description**: Move the password-generation logic to `RandomPasswordGenerator.generate(int byteLength)`. Make the print line a constant `BOOTSTRAP_CONSOLE_FORMAT`.
-- **Evidence**: `mvn -pl sync-service test` passes.
+- **Evidence (actual run)**: `RandomPasswordGenerator` extracted; minimum-byte-length guard at 12 bytes (96 bits of entropy). `AdminBootstrap` references the bean. Full regression: 56 tests, 0 failures.
 
 ### PR2-7: Wire `must_change_password` into login response
 
+- **Status**: ✅ DONE 2026-07-16.
 - **Type**: GREEN + RED.
-- **File**: `sync-service/src/main/java/com/sales/sync/auth/dto/AuthResponse.java`, `service/AuthService.java`.
+- **File**: `sync-service/src/main/java/com/sales/sync/auth/dto/AuthResponse.java`, `service/AuthService.java`, `security/JwtService.java`.
 - **Description**: Add `must_change_password` boolean to `AuthResponse`. In `AuthService.login()`, after loading the user, populate the flag from `user.isMustChangePassword()`. Add a test `AuthServiceTest.login_returns_must_change_password_true_for_bootstrap_admin()` that creates a user with the flag set, logs in, asserts the response body has the flag. The flag must also be added to the JWT as a `mcp` claim — extend `JwtService.sign()` to accept a `mustChangePassword` parameter and write the `mcp` claim. Update `AuthService.login()` to pass the flag to `JwtService.sign()`.
-- **Evidence**: `mvn -pl sync-service test -Dtest=AuthServiceTest` passes; manual `curl` confirms `mcp: true` in the JWT payload decoded at jwt.io.
+- **Evidence (actual run)**:
+  - `mvn -Dtest=AuthServiceTest test` -> `Tests run: 3, Failures: 0`.
+  - `mvn -Dtest=JwtServiceTest test` -> `Tests run: 7, Failures: 0` (added 3 cases: mcp=true round-trip, mcp=false round-trip, legacy-without-mcp defaults to false).
+  - Full suite `mvn test` -> `Tests run: 56, Failures: 0`.
+- **Note on back-compat**: `JwtService` keeps the 4-arg `sign(UUID, UUID, String, User.Role)` overload (delegates to the 5-arg form with `mcp=false`). Existing callers (SignupService, RefreshRotationService, V5 test seeders) compile unchanged; only `AuthService` and tests that explicitly want to test the bootstrap flow use the 5-arg form.
 
 ### PR2-8: Doc — bootstrap runbook
 
+- **Status**: ✅ DONE 2026-07-16.
 - **Type**: DOC.
 - **File**: `docs/RUNBOOK_ADMIN_BOOTSTRAP.md` (new).
 - **Description**: Step-by-step: how to start the sync-service for the first time, capture credentials, log in via Flutter, change password, verify access. Includes CI notes (set `ADMIN_BOOTSTRAP_ENABLED=false`).
-- **Evidence**: file exists, manually reviewable, mentions all CLI flags (`--admin-recover`, env vars).
+- **Evidence (actual run)**: file written (7.7KB). Operator-readable; cross-references the spec, design, source, and test files. Recovery procedure section covers the `--admin-recover` (env-var form) path. CI section calls out the credential-leak risk if `bootstrap-enabled` is left at `true` in pipelines.
 
 ---
 

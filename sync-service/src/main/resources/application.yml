@@ -72,3 +72,12 @@ hielo:
 auth:
   cleanup:
     cron: "0 0 3 * * *"
+
+# ---- admin-console PR2: first-admin bootstrap knobs ----
+# `app.admin.bootstrap-enabled` is OFF in CI so credentials never leak into
+# build logs. `app.admin.recover-email` is honored ONLY when there is no
+# active admin — see RUNBOOK_ADMIN_BOOTSTRAP.md.
+app:
+  admin:
+    bootstrap-enabled: ${APP_ADMIN_BOOTSTRAP_ENABLED:true}
+    recover-email: ${APP_ADMIN_RECOVER_EMAIL:}

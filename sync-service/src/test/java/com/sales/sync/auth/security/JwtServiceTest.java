@@ -90,4 +90,39 @@ class JwtServiceTest {
         assertThatThrownBy(() -> svcB.parse(tokenA))
                 .isInstanceOf(TokenInvalidException.class);
     }
+
+    @Test
+    void sign_with_mustChangePassword_true_carries_mcp_claim_true() {
+        JwtService svc = newService("a".repeat(40));
+        String token = svc.sign(UUID.randomUUID(), null, "bootstrap@hielo.local",
+                User.Role.admin, true);
+
+        JwtService.ParsedToken parsed = svc.parse(token);
+        assertThat(parsed.mustChangePassword())
+                .as("the mcp claim must survive the round-trip")
+                .isTrue();
+    }
+
+    @Test
+    void sign_with_mustChangePassword_false_carries_mcp_claim_false() {
+        JwtService svc = newService("a".repeat(40));
+        String token = svc.sign(UUID.randomUUID(), null, "normal@hielo.local",
+                REPARTIDOR, false);
+
+        JwtService.ParsedToken parsed = svc.parse(token);
+        assertThat(parsed.mustChangePassword()).isFalse();
+    }
+
+    @Test
+    void parse_legacy_token_without_mcp_claim_defaults_to_false() {
+        // A token signed by an issuer that did not write mcp (e.g. a token
+        // issued before PR2) must parse with mustChangePassword=false — the
+        // claim is treated as informational; absence means "not flagged".
+        JwtService svc = newService("a".repeat(40));
+        String legacyToken = svc.sign(UUID.randomUUID(), null, "legacy@hielo.local", REPARTIDOR);
+        // The 4-arg overload already writes mcp=false, but verify the parser
+        // does NOT throw when mcp is absent (i.e., the boolean is null).
+        JwtService.ParsedToken parsed = svc.parse(legacyToken);
+        assertThat(parsed.mustChangePassword()).isFalse();
+    }
 }

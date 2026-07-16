@@ -47,7 +47,7 @@ class AuthControllerWebMvcTest {
     @Test
     void login_valid_returns_200_with_tokens_and_expires_in_900() throws Exception {
         when(authService.login(any()))
-                .thenReturn(new AuthResponse("access", "refresh", 900L));
+                .thenReturn(new AuthResponse("access", "refresh", 900L, false));
 
         mvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)

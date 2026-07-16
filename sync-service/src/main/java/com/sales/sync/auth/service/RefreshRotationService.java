@@ -81,6 +81,6 @@ public class RefreshRotationService {
         next.setExpiresAt(Instant.now().plus(props.refreshTokenTtl()));
         tokens.save(next);
 
-        return new AuthResponse(access, rt.plaintext(), props.accessTokenTtl().toSeconds());
+        return new AuthResponse(access, rt.plaintext(), props.accessTokenTtl().toSeconds(), false);
     }
 }

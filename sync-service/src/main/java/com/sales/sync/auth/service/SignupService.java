@@ -87,10 +87,10 @@ public class SignupService {
         u.setEmail(email);
         u.setPasswordHash(passwordEncoder.encode(req.password()));
         u.setLocked(false);
-        // Lock the role server-side. The clients.role column remains the
-        // single source of truth for v1; PR2/PR3 will migrate to a TEXT[]
-        // without changing this code path.
-        u.setRole(User.Role.cliente);
+        u.setActive(true);
+        // Multi-role source of truth. setRoles() also keeps the legacy
+        // single-string role column in sync for the JWT cut-over window.
+        u.setRoles(java.util.Set.of(User.Role.cliente));
 
         if (req.full_name() != null) u.setFullName(req.full_name());
         if (req.phone() != null) u.setPhone(req.phone());
@@ -120,6 +120,6 @@ public class SignupService {
                     "role=" + req.role()));
         }
 
-        return new AuthResponse(access, rt.plaintext(), props.accessTokenTtl().toSeconds());
+        return new AuthResponse(access, rt.plaintext(), props.accessTokenTtl().toSeconds(), false);
     }
 }

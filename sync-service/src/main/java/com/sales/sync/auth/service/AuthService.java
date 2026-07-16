@@ -25,6 +25,11 @@ import java.util.UUID;
  * password, issue a new access JWT (with email + role claims), mint a fresh
  * refresh token and persist its SHA-256 hash tied to the user's current
  * active family (or a new one if no active family exists yet).
+ *
+ * <p>The {@code mcp} claim of the JWT and the {@code must_change_password}
+ * field of the response are set from {@link User#isMustChangePassword()}.
+ * This is the propagation path used by the bootstrap (PR2) and the
+ * reactivate flow (PR4) to force a password rotation on the next login.
  */
 @Service
 public class AuthService {
@@ -67,7 +72,12 @@ public class AuthService {
         UUID family = tokens.findActiveFamilyByUserId(userId)
                 .orElseGet(UUID::randomUUID);
 
-        String access = jwtService.sign(userId, user.getVendorId(), user.getEmail(), user.getRole());
+        String access = jwtService.sign(
+                userId,
+                user.getVendorId(),
+                user.getEmail(),
+                user.getRole(),
+                user.isMustChangePassword());
         RefreshTokenCodec.OpaqueRefreshToken rt = refreshTokenCodec.generate();
 
         RefreshToken row = new RefreshToken();
@@ -80,6 +90,7 @@ public class AuthService {
         return new AuthResponse(
                 access,
                 rt.plaintext(),
-                props.accessTokenTtl().toSeconds());
+                props.accessTokenTtl().toSeconds(),
+                user.isMustChangePassword());
     }
 }

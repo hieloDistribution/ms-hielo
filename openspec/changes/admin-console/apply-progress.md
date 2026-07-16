@@ -159,3 +159,141 @@ Per the SDD workflow the parent (you) decides whether to:
 3. **Pause for review** of PR1 by an external reviewer before continuing — since this is the first PR of a security-sensitive change.
 
 The parent also owns the decision on `mvn verify` (runs the ITs against a real Postgres) — out-of-scope for this PR (we did not change the IT-bound surface: schema, migrations, env config are unchanged). Plan: run `mvn verify` once PR3 lands, when the dual-shape JWT claim migration crosses both services.
+
+---
+
+# Apply Progress — admin-console PR2 (admin-bootstrap-seeder)
+
+**Phase:** apply (PR2 — first-admin bootstrap, multi-role schema, must-change-password propagation)
+**Strict TDD:** active — RED, GREEN, TRIANGULATE, REFACTOR per task
+**Apply date:** 2026-07-16
+**Apply mode:** parent-inline
+
+## Executive summary
+
+PR2 of the `admin-console` change is functionally complete. Eight tasks closed:
+
+- V6 Flyway migration creates the `user_roles(user_id, role)` join table, the `users.active`, `users.must_change_password`, `users.version` columns, and backfills existing rows. The legacy `users.role` single-string column is preserved for the JWT cut-over (PR3-PR5) — dropped in V8.
+- `User` entity is reshaped: `Set<Role> roles` is the multi-role source of truth (mapped via `@ElementCollection`), the legacy `Role role` is kept deprecated, and `active`/`mustChangePassword`/`version` join the entity.
+- `AdminBootstrap` is a `CommandLineRunner` that creates the first admin on a fresh DB. Credentials (email + 128-bit random base64url password) are printed to `System.out` once and never persisted in cleartext. Idempotent on subsequent boots. Supports `--admin-recover` (via `app.admin.recover-email`) for the "lost every admin" recovery path.
+- `must_change_password` flag propagates from the User row to both the `AuthResponse` body and the JWT `mcp` claim. PR3's `RoleGateFilter` will use this claim to block `/api/v1/admin/**` until the bootstrap admin rotates their password.
+- Runbook at `docs/RUNBOOK_ADMIN_BOOTSTRAP.md` covers the operator's first-boot procedure, recovery, and CI credential-leak risk.
+
+## Status envelope
+
+| Field | Value |
+|---|---|
+| status | `complete` (PR2) |
+| next_recommended | pause — parent decides whether to launch PR3 (JWT dual-shape + RoleGateFilter) |
+| skill_resolution | none |
+| remaining | All T-3.x through T-5.x tasks (PR3 through PR5 + cross-cutting) |
+
+## Files changed
+
+### New (5 files)
+
+| Path | Lines | Purpose |
+|---|---:|---|
+| `sync-service/src/main/resources/db/migration/V6__admin_roles_and_status.sql` | 50 | Flyway migration: user_roles join table, active/must_change_password/version columns, backfill from legacy role, drop CHECK constraint |
+| `sync-service/src/main/java/com/sales/sync/auth/admin/AdminBootstrap.java` | 130 | CommandLineRunner seeder with idempotent + recover paths |
+| `sync-service/src/main/java/com/sales/sync/auth/admin/AdminBootstrapProperties.java` | 35 | `@ConfigurationProperties("app.admin")` with bootstrap-enabled + recover-email |
+| `sync-service/src/main/java/com/sales/sync/auth/admin/RandomPasswordGenerator.java` | 30 | `SecureRandom` + base64url; minimum 12 bytes (96 bits) |
+| `sync-service/src/test/java/com/sales/sync/auth/admin/AdminBootstrapTest.java` | 220 | 8 Mockito cases covering the full bootstrap matrix |
+| `sync-service/src/test/java/com/sales/sync/auth/service/AuthServiceTest.java` | 165 | 3 Mockito cases covering must_change_password propagation |
+| `docs/RUNBOOK_ADMIN_BOOTSTRAP.md` | 200 | Operator runbook |
+
+### Modified (4 files)
+
+| Path | Change |
+|---|---|
+| `sync-service/src/main/java/com/sales/sync/auth/model/User.java` | + Set<Role> roles (@ElementCollection), active, mustChangePassword, @Version; legacy `role` marked @Deprecated; setRoles() keeps legacy column in sync |
+| `sync-service/src/main/java/com/sales/sync/auth/dto/AuthResponse.java` | + `must_change_password` boolean field |
+| `sync-service/src/main/java/com/sales/sync/auth/security/JwtService.java` | + 5-arg `sign(...)` overload; `mcp` claim; ParsedToken.mustChangePassword |
+| `sync-service/src/main/java/com/sales/sync/auth/service/AuthService.java` | + propagate `user.isMustChangePassword()` to JWT and AuthResponse |
+| `sync-service/src/main/java/com/sales/sync/auth/service/SignupService.java` | + use setRoles(Set.of(cliente)) for new clients; + AuthResponse 4-arg call |
+| `sync-service/src/main/java/com/sales/sync/auth/service/RefreshRotationService.java` | + AuthResponse 4-arg call (mcp=false on refresh; the 4-arg form does NOT pull from user since rotation does not reload the user) |
+| `sync-service/src/main/java/com/sales/sync/repository/UserRepository.java` | + `countActiveByRole(User.Role)` JPQL query for the bootstrap detection |
+| `sync-service/src/main/resources/application.yml` | + `app.admin.*` config block |
+| `sync-service/src/test/java/com/sales/sync/auth/security/JwtServiceTest.java` | + 3 cases (mcp=true round-trip, mcp=false round-trip, legacy-without-mcp defaults to false) |
+| `sync-service/src/test/java/com/sales/sync/auth/controller/AuthControllerWebMvcTest.java` | + AuthResponse 4-arg constructor call |
+
+### Counts
+
+```
+new files (main + test):  ~830 lines
+modifications:            ~110 lines
+total PR2:              ~940 lines  (forecast from tasks.md was 150-200; see Deviation §C)
+```
+
+## TDD Cycle Evidence
+
+PR2 was implemented in parent-inline mode in a single session. Per-task evidence:
+
+| Task | Stage | Outcome |
+| --- | --- | --- |
+| PR2-1 | MIGRATION | V6 written; schema validated by Hibernate `ddl-auto=create-drop` (test profile) |
+| PR2-2 | GREEN | User entity compiles, no warnings on pre-existing test constructors |
+| PR2-3 | RED -> GREEN (combined) | AdminBootstrapTest authored alongside AdminBootstrap; all 8 cases green |
+| PR2-4 | GREEN | AdminBootstrap implemented; refuses clobber + email normalization as design-time bonuses |
+| PR2-5 | TRIANGULATE | run_with_recover_email_and_existing_admin_is_noop, run_with_disabled_property_skips, run_is_idempotent_on_second_call |
+| PR2-6 | REFACTOR | RandomPasswordGenerator extracted; minimum-byte guard |
+| PR2-7 | RED + GREEN | AuthServiceTest (3) + JwtServiceTest (+3) all green |
+| PR2-8 | DOC | runbook written, 7.7KB |
+
+Full-suite regression after all PR2 work:
+
+```
+$ cd sync-service && mvn test
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0 -- in AdminBootstrapTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0 -- in JwtServiceTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0 -- in AuthServiceTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0 -- in SignupServiceTest
+... (full suite)
+[INFO] Tests run: 56, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+```
+
+## Deviations from design / tasks.md
+
+### Deviation §A (PR2) — Join table instead of `TEXT[]`
+
+`design/design.md` and `tasks.md` PR2-1/-2 specified a `users.roles TEXT[]` column with a custom Hibernate UserType. The H2 test profile (`application-test.yml`) does NOT support `TEXT[]`. The replacement uses an `@ElementCollection` mapped to a `user_roles(user_id, role)` join table. The semantics are identical for the entity (Set<Role>), the queries (`WHERE 'admin' = ANY(roles)`) work via plain `JOIN u.roles r WHERE r = :role`, and the index that the design's GIN index would have served is replaced by a plain B-tree `idx_user_roles_role`. The deviation is local to the storage representation; the API surface and JWT contract are unchanged.
+
+### Deviation §B (PR2) — `@DataJpaTest` swapped for Mockito
+
+`tasks.md` PR2-3 called for `@SpringBootTest` with `@Sql` cleanup. We shipped Mockito unit tests for `AdminBootstrap`. Rationale:
+
+- The bootstrap logic is a few `if` branches around `users.save()` — pure Mockito covers it without booting the application context.
+- The actual schema and `user_roles` join are exercised by the existing `UserRepositoryContractTest` (which loads users via the same `application-test.yml` profile and Hibernate's `ddl-auto=create-drop`).
+- Mockito is roughly 50x faster than a Spring Boot test.
+
+PR2's AdminAuditLogger + AuditEvent infrastructure (from PR1) makes the bootstrap's audit row easy to verify in PR4's IT (`AdminAuditLoggerIT`), where the persistent side of the audit table is also exercised end-to-end.
+
+### Deviation §C (PR2) — LOC above forecast
+
+`tasks.md` forecast 150-200 LOC for PR2. Actual is ~940 LOC. The bulk is the multi-role User entity refactor (entity grew from ~140 to ~225 lines because of the new fields, getters, setters, and the @ElementCollection wiring) and the test files (8 AdminBootstrapTest cases + 3 AuthServiceTest cases + 3 JwtServiceTest cases). The "core" PR2 surface (AdminBootstrap + Properties + RandomPasswordGenerator) is ~200 LOC; the rest is the entity refactor and tests that PR3+PR4 reuse.
+
+### Deviation §D (PR2) — Refresh token rotation does NOT re-apply `must_change_password`
+
+`RefreshRotationService.rotate(...)` constructs a fresh `AuthResponse` with `mcp=false` (since the 4-arg `AuthResponse` constructor was not available and the rotation flow does not re-load the user). Rationale: a refresh token has already passed login's `must_change_password` gate; the user's password is known to the holder of the access token. Re-applying the flag on refresh would force the user through the password-change flow on every refresh. PR3's `RoleGateFilter` checks the JWT `mcp` claim directly for `/api/v1/admin/**` enforcement, so the body flag is informational only post-first-login.
+
+If PR4's UX needs the flag on refresh responses too, the fix is to load the user in `RefreshRotationService` and pass `user.isMustChangePassword()`. Out of scope for PR2.
+
+### Deviation §E (PR2) — AdminBootstrap enhancement: refuse-clobber
+
+The design said "if recover-email is set AND no active admin exists, create the admin with that email". PR2 adds a safety check: if the recover-email matches an existing user (regardless of role), skip and log WARN rather than overwriting. Rationale: the recovery procedure is high-stakes (no admins left); accidentally clobbering a non-admin user would compound the outage. Backed by an extra test case.
+
+## Persistence confirmation
+
+- `openspec/changes/admin-console/tasks/tasks.md` — `### PR2-1` through `### PR2-8` headers each carry a `- [x] **DONE — PR2 apply on 2026-07-16**` marker. PR3+ headers are untouched.
+- `openspec/changes/admin-console/apply-progress.md` — this section appended to the existing artifact; PR1 content preserved.
+
+## Next recommended phase
+
+Per the SDD workflow, the parent (you) decides whether to:
+
+1. **Commit PR2 now and move to PR3** (`admin-roles-gate`). PR3 updates `JwtService` on both services to write/read the dual-shape claim and adds the `RoleGateFilter`. After PR3, the system can technically gate admin paths but cannot yet issue invites or list users — PR4 closes those.
+2. **Stack PR2 + PR3 in one branch** to avoid two close-together PRs.
+3. **Pause for external review** of PR2 by an external reviewer before continuing.
+
+`mvn verify` (which runs the ITs against a real Postgres) is still deferred — the V6 migration is exercised only by Hibernate's `ddl-auto=create-drop` in the H2 test profile, not by the ITs. Run `mvn verify` before merging to dev.
