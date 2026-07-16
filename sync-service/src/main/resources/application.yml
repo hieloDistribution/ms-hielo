@@ -81,3 +81,8 @@ app:
   admin:
     bootstrap-enabled: ${APP_ADMIN_BOOTSTRAP_ENABLED:true}
     recover-email: ${APP_ADMIN_RECOVER_EMAIL:}
+  invite:
+    ttl-hours: ${APP_INVITE_TTL_HOURS:24}
+    rate-limit:
+      capacity: ${APP_INVITE_RATE_LIMIT_CAPACITY:5}
+      window-minutes: ${APP_INVITE_RATE_LIMIT_WINDOW_MINUTES:60}

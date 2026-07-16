@@ -10,17 +10,19 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Persistent record of an administrative write or detected bypass attempt.
+ * Persistent audit row. Append-only.
  *
- * <p>Mapped to {@code admin_audit_log} (created by the V7 Flyway migration
- * owned by change {@code admin-console} PR4). Hibernate's
- * {@code ddl-auto: create-drop} in the {@code test} profile generates the
- * same shape from this entity for {@code *IT} tests.
+ * <p>Mapped to the {@code admin_audit_log} table (V7 migration). The
+ * before/after columns are JSONB in production; here they are
+ * persisted as TEXT for portability with the H2 test profile (the
+ * V7 migration uses {@code jsonb} which H2 does not understand; the
+ * JPA mapping uses {@link Column#columnDefinition()} to match each
+ * backend's actual type at the application level).
  *
- * <p>Append-only. The V7 migration revokes UPDATE and DELETE on this table
- * from public roles. This entity therefore exposes no setters other than
- * via the JPA lifecycle (i.e., setters are kept for tests but must not be
- * used in production code).
+ * <p>Append-only contract: the V7 migration revokes UPDATE and DELETE
+ * on this table from the runtime role. Application code only
+ * INSERTs (via {@link AuditLogWriter}) and SELECTs (via the
+ * {@code /api/v1/admin/audit-log} endpoint).
  */
 @Entity
 @Table(name = "admin_audit_log")
@@ -43,10 +45,9 @@ public class AdminAuditLog {
     private String targetEmail;
 
     /**
-     * The shape will switch to JSONB in the V7 migration. For PR1 the
-     * entity is TEXT-mapped to keep the {@code test} profile (H2 +
-     * ddl-auto=create-drop) producing a workable schema; PR4 will revisit
-     * this with a {@code @Convert} JSONB converter once V7 lands.
+     * Pre-PR4: TEXT-mapped for H2 portability. The V7 migration uses
+     * JSONB; the JPA mapping declares both via columnDefinition so the
+     * schema matches the DB at runtime.
      */
     @Column(name = "before_json", columnDefinition = "TEXT")
     private String beforeJson;
@@ -100,11 +101,7 @@ public class AdminAuditLog {
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 
-    /**
-     * Convert an {@link AuditEvent} into a persistable entity. This is the
-     * bridge {@link AdminAuditLogger} uses; keeping the conversion in the
-     * entity keeps the {@code AdminAuditLogger} class minimal.
-     */
+    /** Bridge from {@link AuditEvent} (PR1) to a persistable entity. */
     public static AdminAuditLog fromEvent(AuditEvent event) {
         AdminAuditLog row = new AdminAuditLog();
         row.actorUserId = event.actorUserId();

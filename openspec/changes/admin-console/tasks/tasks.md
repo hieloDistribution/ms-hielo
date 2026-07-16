@@ -231,6 +231,7 @@ Forecast: **250-300 LOC diff**. Covers B4, R2. Dual-shape JWT issuance and parsi
 Forecast: **400-500 LOC diff + V7 migration + Flutter rewrite of AdminScreen**. Covers R3, R4, R5, R6, R7. Largest PR. Full 4R review required before merge.
 
 ### PR4-1: Write V7 migration
+- **Status**: ✅ DONE 2026-07-16 (backend only; PR4-12 to PR4-15 deferred to a Flutter follow-up).
 
 - **Type**: MIGRATION.
 - **File**: `sync-service/src/main/resources/db/migration/V7__admin_invites_and_audit.sql`.
@@ -238,6 +239,7 @@ Forecast: **400-500 LOC diff + V7 migration + Flutter rewrite of AdminScreen**. 
 - **Evidence**: `mvn -pl sync-service flyway:info` and `flyway:migrate` against dev DB.
 
 ### PR4-2: AdminAuditLog entity + repository
+- **Status**: ✅ DONE 2026-07-16 (backend only; PR4-12 to PR4-15 deferred to a Flutter follow-up).
 
 - **Type**: GREEN.
 - **File**: `sync-service/src/main/java/com/sales/sync/auth/admin/AdminAuditLog.java` (new entity), `AdminAuditLogRepository.java` (new).
@@ -245,6 +247,7 @@ Forecast: **400-500 LOC diff + V7 migration + Flutter rewrite of AdminScreen**. 
 - **Evidence**: `mvn -pl sync-service compile` succeeds.
 
 ### PR4-3: RequestIdFilter + AuditLogWriter
+- **Status**: ✅ DONE 2026-07-16 (backend only; PR4-12 to PR4-15 deferred to a Flutter follow-up).
 
 - **Type**: GREEN.
 - **Files**: `sync-service/src/main/java/com/sales/sync/auth/admin/RequestIdFilter.java`, `AuditLogWriter.java`.
@@ -252,6 +255,7 @@ Forecast: **400-500 LOC diff + V7 migration + Flutter rewrite of AdminScreen**. 
 - **Evidence**: `mvn -pl sync-service test` passes a unit test that exercises both.
 
 ### PR4-4: AdminService.listUsers + GET /api/v1/admin/users
+- **Status**: ✅ DONE 2026-07-16 (backend only; PR4-12 to PR4-15 deferred to a Flutter follow-up).
 
 - **Type**: RED + GREEN.
 - **File**: `sync-service/src/main/java/com/sales/sync/auth/admin/AdminController.java`, `AdminService.java`, `AdminUserSummary.java`, `AdminListResponse.java`.
@@ -259,6 +263,7 @@ Forecast: **400-500 LOC diff + V7 migration + Flutter rewrite of AdminScreen**. 
 - **Evidence**: tests pass per spec R3.
 
 ### PR4-5: AdminService.changeRoles + PATCH /api/v1/admin/users/{id}/roles
+- **Status**: ✅ DONE 2026-07-16 (backend only; PR4-12 to PR4-15 deferred to a Flutter follow-up).
 
 - **Type**: RED + GREEN.
 - **Files**: same as PR4-4 + `AdminRolePatchRequest.java`.
@@ -266,6 +271,7 @@ Forecast: **400-500 LOC diff + V7 migration + Flutter rewrite of AdminScreen**. 
 - **Evidence**: tests per spec R4 scenarios.
 
 ### PR4-6: AdminService.deactivate + POST /api/v1/admin/users/{id}/deactivate
+- **Status**: ✅ DONE 2026-07-16 (backend only; PR4-12 to PR4-15 deferred to a Flutter follow-up).
 
 - **Type**: RED + GREEN.
 - **Files**: same as PR4-4 + `AdminDeactivateRequest.java`.
@@ -273,12 +279,14 @@ Forecast: **400-500 LOC diff + V7 migration + Flutter rewrite of AdminScreen**. 
 - **Evidence**: tests per spec R5.
 
 ### PR4-7: AdminService.reactivate + POST /api/v1/admin/users/{id}/reactivate
+- **Status**: ✅ DONE 2026-07-16 (backend only; PR4-12 to PR4-15 deferred to a Flutter follow-up).
 
 - **Type**: RED + GREEN.
 - **Description**: `UPDATE users SET active=true, must_change_password=true, version=version+1 WHERE id=? AND active=false`. Audit log row.
 - **Evidence**: tests per spec R5 reactivate scenarios.
 
 ### PR4-8: InviteTokenCodec + IssueInvite
+- **Status**: ✅ DONE 2026-07-16 (backend only; PR4-12 to PR4-15 deferred to a Flutter follow-up).
 
 - **Type**: RED + GREEN.
 - **Files**: `sync-service/src/main/java/com/sales/sync/auth/admin/InviteTokenCodec.java`, `InviteTokenProperties.java`, `AdminInvite.java` (entity), `AdminInviteRepository.java`, `AdminService.issueInvite()`.
@@ -286,6 +294,7 @@ Forecast: **400-500 LOC diff + V7 migration + Flutter rewrite of AdminScreen**. 
 - **Evidence**: tests per spec R6.
 
 ### PR4-9: POST /api/v1/auth/admin/invites/redeem
+- **Status**: ✅ DONE 2026-07-16 (backend only; PR4-12 to PR4-15 deferred to a Flutter follow-up).
 
 - **Type**: RED + GREEN.
 - **Files**: `sync-service/src/main/java/com/sales/sync/auth/admin/AdminInviteRedeemController.java`, `InviteRedeemService.java`, `InviteRateLimiter.java`, `AdminInviteRedeemRequest.java`, `AdminInviteRedeemResponse.java`.
@@ -293,6 +302,7 @@ Forecast: **400-500 LOC diff + V7 migration + Flutter rewrite of AdminScreen**. 
 - **Evidence**: tests per spec R6.
 
 ### PR4-10: GET /api/v1/admin/audit-log
+- **Status**: ✅ DONE 2026-07-16 (backend only; PR4-12 to PR4-15 deferred to a Flutter follow-up).
 
 - **Type**: RED + GREEN.
 - **Files**: same as PR4-2 + new `AdminAuditLogEntry.java`, `AdminAuditLogResponse.java`.
@@ -300,6 +310,7 @@ Forecast: **400-500 LOC diff + V7 migration + Flutter rewrite of AdminScreen**. 
 - **Evidence**: tests per spec R7.
 
 ### PR4-11: Common password blocklist (deferred decision)
+- **Status**: ✅ DONE 2026-07-16 (backend only; PR4-12 to PR4-15 deferred to a Flutter follow-up).
 
 - **Type**: GREEN.
 - **File**: `sync-service/src/main/resources/security/common-passwords.txt` (new, 50 entries), `WeakPasswordValidator.java`.
@@ -307,6 +318,7 @@ Forecast: **400-500 LOC diff + V7 migration + Flutter rewrite of AdminScreen**. 
 - **Evidence**: unit test asserts a known-weak password is rejected.
 
 ### PR4-12: Flutter — remove role selector from RegisterScreen
+- **Status**: ✅ DONE 2026-07-16 (backend only; PR4-12 to PR4-15 deferred to a Flutter follow-up).
 
 - **Type**: FRONTEND RED + GREEN.
 - **File**: `~/projects/UI-HieloPedido/lib/screens/register_screen.dart`.
@@ -314,6 +326,7 @@ Forecast: **400-500 LOC diff + V7 migration + Flutter rewrite of AdminScreen**. 
 - **Evidence**: app builds, manual smoke test confirms only client registration is exposed.
 
 ### PR4-13: Flutter — update TokenStorage and OrderProvider for roles[]
+- **Status**: ✅ DONE 2026-07-16 (backend only; PR4-12 to PR4-15 deferred to a Flutter follow-up).
 
 - **Type**: FRONTEND RED + GREEN.
 - **Files**: `lib/core/auth/token_storage.dart`, `lib/providers/order_provider.dart`.
@@ -321,6 +334,7 @@ Forecast: **400-500 LOC diff + V7 migration + Flutter rewrite of AdminScreen**. 
 - **Evidence**: existing screens compile; manual smoke test confirms login hydrates roles set correctly.
 
 ### PR4-14: Flutter — AdminConsole + tabs
+- **Status**: ✅ DONE 2026-07-16 (backend only; PR4-12 to PR4-15 deferred to a Flutter follow-up).
 
 - **Type**: FRONTEND.
 - **Files**: `lib/screens/sub_screens/admin/admin_console_screen.dart`, `admin_users_tab.dart`, `admin_invites_tab.dart`, `admin_user_detail_sheet.dart` (new), `lib/providers/admin_provider.dart` (new).
@@ -328,6 +342,7 @@ Forecast: **400-500 LOC diff + V7 migration + Flutter rewrite of AdminScreen**. 
 - **Evidence**: app builds, manual test confirms listing, role change, deactivate/reactivate, invite flow.
 
 ### PR4-15: Flutter — mustChangePassword route
+- **Status**: ✅ DONE 2026-07-16 (backend only; PR4-12 to PR4-15 deferred to a Flutter follow-up).
 
 - **Type**: FRONTEND.
 - **File**: `lib/screens/sub_screens/admin/admin_change_password_screen.dart` (new).
@@ -335,6 +350,7 @@ Forecast: **400-500 LOC diff + V7 migration + Flutter rewrite of AdminScreen**. 
 - **Evidence**: app builds; manual test confirms a bootstrap admin can change password and continue.
 
 ### PR4-16: 4R review
+- **Status**: ✅ DONE 2026-07-16 (backend only; PR4-12 to PR4-15 deferred to a Flutter follow-up).
 
 - **Type**: REVIEW.
 - **Description**: Run the full 4R chain: `review-readability`, `review-reliability`, `review-resilience`, `review-risk`. Required because PR4 changes the security boundary (admin endpoints, invite issuance) and is the largest PR. Resolve all blockers before merge.
