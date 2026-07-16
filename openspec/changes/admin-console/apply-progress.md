@@ -802,3 +802,75 @@ Per the SDD workflow, the parent (you) decides whether to:
 2. **Resolve the 22 H2 tx-context IT failures.** Would unblock the 22 BDD IT scenarios that currently skip on the transaction-context issue. Smaller surface than PR5.
 3. **Tighten the Flutter UI follow-ups** (Deviation §A, §B, §D) before the 4R review.
 4. **Pause and ship to a real device for end-to-end smoke testing.**
+
+---
+
+# Apply Progress — admin-console PR5 (JWT cutover) — DEFERRED
+
+**Phase:** apply (PR5 admin-roles-cutover) — **deferred, not landed**
+**Apply date:** 2026-07-16
+**Apply mode:** parent-inline
+
+## Executive summary
+
+PR5 (the final JWT cutover: drop the legacy single-string `role` claim, drop the `users.role` column via V8) was attempted in this session and ran into a deep type-system issue that makes a one-shot change impractical:
+
+- The `User` entity has BOTH a `Set<User.Role>` collection (PR2/V6, the source of truth) AND a single-string `User.role` field (PR2's cut-over window).
+- The `Role` JPA entity (introduced in PR2 for the `roles` table) is also named `com.sales.sync.auth.model.Role`.
+- The new `User.roles` collection was changed to `Set<com.sales.sync.auth.model.Role>` (the entity) to match the V6 mapping.
+- This created a Java naming conflict: the field type is the entity `Role`, but the JWT and Spring Security filter code still uses the inner enum `User.Role` for mapping.
+- The type system cannot resolve calls like `u.setRoles(Set.of(entityRole))` because `Set<Role>` (entity) is not assignable to `Set<User.Role>` (enum).
+- The fix would require: (a) keeping the inner enum `User.Role` as the field type, (b) using only the entity in the DB layer, (c) introducing explicit conversion methods at every call site, OR (d) deleting the inner enum entirely and using the entity everywhere (changes the JWT, the filter, the test code).
+- Each option touches ~20 files across the backend and the Flutter app. Doing this in a single sitting without a careful migration plan risks breaking the 91 unit tests that currently pass and the 30 BDD IT scenarios.
+
+The right path is to do PR5 in a dedicated session, with a written migration plan, the V8 migration applied locally, the test suite green at every step, and the Flutter update coordinated.
+
+## What is in the working tree (deferred)
+
+| Path | State |
+|---|---|
+| `sync-service/src/main/resources/db/migration/V8__drop_legacy_role_column.sql` | NEW, ready to land when PR5 is done. `ALTER TABLE users DROP COLUMN IF EXISTS role; DROP INDEX IF EXISTS idx_users_role;` |
+| `User.java` and the rest of the backend | **REVERTED** to the pre-PR5 state (V6 shape B: `Set<User.Role>` enum collection, legacy `User.role` single-string field). The compile error cascade forced a revert. |
+| `User.roles` collection type | Reverted to `Set<User.Role>` (inner enum, JPA `@ElementCollection` of enum). |
+| `JwtService.sign` | Reverted to writing both `role` and `roles` claims (PR3 dual-shape). The PR5 "only roles" cutover is not done. |
+| `UserResponse` | Reverted to `String role` (single-string). The PR5 `List<String> roles` cutover is not done. |
+| All call sites in services and admin | Reverted to use `user.getRole()` (single) and `setRoles(Set<User.Role>)`. The `Set<Role>` API is not in effect. |
+
+## Status envelope
+
+| Field | Value |
+|---|---|
+| status | `deferred` (PR5 cutover not landed in this session) |
+| next_recommended | PR5-FUTURE: dedicated session with a written migration plan |
+| skill_resolution | none |
+| remaining | PR5 (drop legacy `role` claim, V8, simplify); 4R review; Flutter drop legacy fallback |
+
+## Deviations from design / tasks.md
+
+### Deviation §A (PR5) — attempt abandoned in this session
+
+The PR5 design called for:
+- V8 migration to drop `users.role`.
+- `JwtService.sign` to write only `roles` array.
+- `JwtService.parse` to read only `roles` (no `role` fallback).
+- `User` entity: drop `User.role` field, keep `User.roles` collection.
+- CI grep-gate: `getStringClaim("role")` outside tests is an error.
+- Flutter: drop legacy `role` fallback in `TokenStorage` and `OrderProvider`.
+
+The implementation was attempted and aborted at the entity layer when the type-system conflict (`User.Role` enum vs `com.sales.sync.auth.model.Role` entity) caused a compile cascade. Reverted to pre-PR5 state.
+
+### Deviation §B (PR5) — V8 migration file created but not applied
+
+The `V8__drop_legacy_role_column.sql` file exists in the working tree. It is **not** applied by any test (the test profile uses `ddl-auto: create-drop`, which generates the schema from JPA entities; the V8 migration is not in the test path). The file is committed as a forward-looking artifact for the future PR5 session.
+
+## Persistence confirmation
+
+- `sync-service/src/main/resources/db/migration/V8__drop_legacy_role_column.sql`: NEW file in the working tree, ready for the future PR5 session.
+
+## Next recommended phase
+
+Per the SDD workflow, the parent (you) decides whether to:
+
+1. **Schedule PR5 as a dedicated session** with a written migration plan that includes: (a) decide the canonical Role type (entity vs enum); (b) write a `RoleConverter` if both are kept; (c) do the JwtService + User + services + tests + Flutter update in atomic chunks; (d) run `mvn verify` after each chunk. Recommended.
+2. **Skip PR5 and ship the change as-is** at PR1..PR4 state. The dual-shape `role` claim continues to work in the JWT (just a legacy compatibility field). The 4R review would document this as a known follow-up.
+3. **Push current state** (PR1..PR4 + the V8 file + this apply-progress note) and resume PR5 later.
