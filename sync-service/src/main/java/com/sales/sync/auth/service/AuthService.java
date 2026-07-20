@@ -59,6 +59,9 @@ public class AuthService {
         if (user.isLocked()) {
             throw new AccountLockedException("Account is locked");
         }
+        if (user.getRole() == User.Role.cliente) {
+            throw new InvalidCredentialsException("Unknown user");
+        }
         if (!passwordEncoder.matches(req.password(), user.getPasswordHash())) {
             throw new InvalidCredentialsException("Wrong password");
         }

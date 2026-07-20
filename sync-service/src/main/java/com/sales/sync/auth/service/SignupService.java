@@ -65,7 +65,11 @@ public class SignupService {
         u.setEmail(email);
         u.setPasswordHash(passwordEncoder.encode(req.password()));
         u.setLocked(false);
-        u.setRole(User.Role.valueOf(req.role()));
+        User.Role role = User.Role.valueOf(req.role());
+        if (role == User.Role.cliente) {
+            throw new IllegalArgumentException("Cannot create active user account for role 'cliente'");
+        }
+        u.setRole(role);
 
         if (req.full_name() != null) u.setFullName(req.full_name());
         if (req.phone() != null) u.setPhone(req.phone());
