@@ -67,6 +67,12 @@ public class AdminExceptionHandler {
                 .body(Map.of("error", "invite_" + ex.getMessage()));
     }
 
+    @ExceptionHandler(AdminException.InviteNotPending.class)
+    public ResponseEntity<Map<String, String>> inviteNotPending(AdminException.InviteNotPending ex) {
+        return ResponseEntity.status(HttpStatus.GONE)
+                .body(Map.of("error", ex.getMessage()));
+    }
+
     @ExceptionHandler(AdminException.RateLimited.class)
     public ResponseEntity<Map<String, String>> rateLimited(AdminException.RateLimited ex,
                                                             HttpServletRequest request) {

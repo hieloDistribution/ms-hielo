@@ -12,6 +12,7 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import jakarta.persistence.Version;
 
 import java.math.BigDecimal;
@@ -76,10 +77,16 @@ public class User {
     /**
      * Legacy single-string role column. Preserved through the JWT cut-over
      * window; dropped in V8. New code MUST write to {@link #roles} instead.
+     *
+     * <p>Marked {@code @Transient} because the {@code role} column was
+     * dropped by V8. The field is kept for back-compat with the JWT
+     * cut-over window (it is populated in memory by {@link #setRoles}
+     * from the first element of the role set) and for callers that still
+     * rely on {@link #getRole()}; it is no longer a database column.
      */
     @Deprecated
     @Enumerated(EnumType.STRING)
-    @Column(name = "role", nullable = false, length = 20)
+    @Transient
     private Role role = Role.cliente;
 
     /**
@@ -179,7 +186,33 @@ public class User {
     public boolean isLocked() { return locked; }
     public void setLocked(boolean locked) { this.locked = locked; }
 
-    public Role getRole() { return role; }
+    /**
+     * Return the legacy single-string role. Since the {@code role} column
+     * was dropped by V8 and made {@code @Transient}, the field is no
+     * longer populated by Hibernate's default field access; the cascade
+     * in {@link #setRoles} that used to sync {@code role} from the first
+     * element of the set never runs (Hibernate injects the ManyToMany
+     * collection by reflection). To keep the JWT cut-over window
+     * contract (single-string {@code role} claim), derive the value
+     * on-the-fly from the eagerly-loaded {@link #roles} set. If the
+     * legacy field was explicitly set somewhere (e.g. tests, admin paths
+     * that pre-PR3 still mutate it), honor it.
+     */
+    public Role getRole() {
+        if (role != null && role != Role.cliente) {
+            return role;
+        }
+        if (roles != null && !roles.isEmpty()) {
+            try {
+                return User.Role.valueOf(
+                        roles.iterator().next().getName());
+            } catch (IllegalArgumentException ignored) {
+                // Future role name not in the User.Role enum — fall
+                // through to the default.
+            }
+        }
+        return Role.cliente;
+    }
     @Deprecated
     public void setRole(Role role) { this.role = role; }
 

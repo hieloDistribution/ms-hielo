@@ -1,18 +1,30 @@
 package com.sales.sync.auth.security;
 
 import com.sales.sync.auth.model.User;
+import org.springframework.beans.factory.annotation.Configurable;
+import org.springframework.context.annotation.Scope;
+import org.springframework.context.annotation.ScopedProxyMode;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.annotation.RequestScope;
+import org.springframework.web.context.WebApplicationContext;
 
 import java.util.Optional;
 import java.util.UUID;
 
 /**
  * Request-scoped container for the authenticated principal parsed from the JWT.
- * Populated by {@link JwtAuthenticationFilter}.
+ * Populated by {@link JwtAuthenticationFilter} (which runs in the servlet
+ * filter chain, BEFORE the DispatcherServlet activates the request scope).
+ *
+ * <p>{@code proxyMode = TARGET_CLASS} is required so the filter — which
+ * is itself a singleton — can inject a scoped proxy. Without the proxy,
+ * the filter receives a singleton instance and its writes never reach the
+ * per-request instance that the controllers see, which manifests as
+ * {@code IllegalStateException("No authenticated user in this request")}
+ * even on requests where the JWT was successfully parsed.
  */
 @Component
-@RequestScope
+@Scope(value = WebApplicationContext.SCOPE_REQUEST, proxyMode = ScopedProxyMode.TARGET_CLASS)
+@Configurable
 public class AuthContext {
 
     private JwtService.ParsedToken parsed;

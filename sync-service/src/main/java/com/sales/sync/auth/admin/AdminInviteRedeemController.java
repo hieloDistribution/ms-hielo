@@ -5,12 +5,15 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Duration;
+import java.util.stream.Collectors;
 
 /**
  * Public invite redemption endpoint. NOT gated by the admin role
@@ -45,18 +48,21 @@ public class AdminInviteRedeemController {
     ) {}
 
     @PostMapping("/invites/redeem")
-    public RedeemResponse redeem(@RequestBody @Valid RedeemRequest body,
-                                 HttpServletRequest request) {
+    public ResponseEntity<RedeemResponse> redeem(@RequestBody @Valid RedeemRequest body,
+                                                 HttpServletRequest request) {
         String ip = clientIp(request);
         if (!rateLimiter.tryAcquire(ip)) {
             long retryAfter = rateLimiter.timeUntilRefill(ip).toSeconds();
             throw new AdminException.RateLimited(Math.max(1, retryAfter));
         }
         User u = adminService.redeemInvite(body.token(), body.password(), body.fullName());
-        return new RedeemResponse(
-                u.getId().toString(),
-                u.getEmail(),
-                u.getRoles().stream().map(r -> r.getName()).collect(java.util.stream.Collectors.toSet()));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new RedeemResponse(
+                        u.getId().toString(),
+                        u.getEmail(),
+                        u.getRoles().stream()
+                                .map(r -> r.getName())
+                                .collect(Collectors.toSet())));
     }
 
     private static String clientIp(HttpServletRequest request) {

@@ -4,7 +4,10 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -49,10 +52,14 @@ public class AdminAuditLog {
      * JSONB; the JPA mapping declares both via columnDefinition so the
      * schema matches the DB at runtime.
      */
-    @Column(name = "before_json", columnDefinition = "TEXT")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Convert(converter = JsonStringConverter.class)
+        @Column(name = "before_json", columnDefinition = "jsonb")
     private String beforeJson;
 
-    @Column(name = "after_json", columnDefinition = "TEXT")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Convert(converter = JsonStringConverter.class)
+        @Column(name = "after_json", columnDefinition = "jsonb")
     private String afterJson;
 
     @Column(name = "request_id", nullable = false, length = 64)

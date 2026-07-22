@@ -6,7 +6,7 @@ import java.util.UUID;
  * Domain-level exceptions thrown by {@link AdminService}. Mapped to
  * HTTP responses by {@link AdminExceptionHandler}.
  *
- * <p>Owner: change {@code admin-console} PR4.
+ * <p>Owner: change {@code admin-console} PR4 + follow-up.
  */
 public final class AdminException {
 
@@ -41,6 +41,13 @@ public final class AdminException {
         public RateLimited(long retryAfterSeconds) {
             super("rate_limited");
             this.retryAfterSeconds = retryAfterSeconds;
+        }
+    }
+
+    /** 410 \u2014 invite not found, already redeemed, or already revoked. */
+    public static class InviteNotPending extends RuntimeException {
+        public InviteNotPending(String reason) {
+            super(reason != null ? reason : "invite_not_pending");
         }
     }
 }

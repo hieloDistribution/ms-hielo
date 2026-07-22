@@ -11,12 +11,17 @@ import java.util.UUID;
 
 /**
  * One row per issued admin/repartidor invite. The {@code token_hash}
- * is the bcrypt-hashed token string; the cleartext is returned only
+ * is the SHA-256-hashed token string; the cleartext is returned only
  * at issue time and is never persisted.
  *
- * <p>State machine: {@code used_at IS NULL AND expires_at > now()} means
- * "pending and redeemable". Used invites have {@code used_at} set; the
- * redeem flow flips NULL to now() atomically.
+ * <p>State machine: {@code used_at IS NULL AND revoked_at IS NULL AND
+ * expires_at > now()} means "pending and redeemable". Used invites
+ * have {@code used_at} set; revoked invites have {@code revoked_at}
+ * set. The redeem flow rejects with {@code invite_revoked} when
+ * {@code revoked_at} is non-null.
+ *
+ * <p>Added in V9: {@code revoked_at} so the admin console can cancel
+ * a pending invite.
  */
 @Entity
 @Table(name = "admin_invites")
@@ -41,6 +46,9 @@ public class AdminInvite {
     @Column(name = "used_at")
     private Instant usedAt;
 
+    @Column(name = "revoked_at")
+    private Instant revokedAt;
+
     @Column(name = "created_by", nullable = false)
     private UUID createdBy;
 
@@ -54,8 +62,12 @@ public class AdminInvite {
     }
 
     public boolean isPending() {
-        return usedAt == null && expiresAt.isAfter(Instant.now());
+        return usedAt == null
+                && revokedAt == null
+                && expiresAt.isAfter(Instant.now());
     }
+
+    public boolean isRevoked() { return revokedAt != null; }
 
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
@@ -74,6 +86,9 @@ public class AdminInvite {
 
     public Instant getUsedAt() { return usedAt; }
     public void setUsedAt(Instant usedAt) { this.usedAt = usedAt; }
+
+    public Instant getRevokedAt() { return revokedAt; }
+    public void setRevokedAt(Instant revokedAt) { this.revokedAt = revokedAt; }
 
     public UUID getCreatedBy() { return createdBy; }
     public void setCreatedBy(UUID createdBy) { this.createdBy = createdBy; }

@@ -1,7 +1,10 @@
 package com.sales.sync.auth.admin;
 
+import com.sales.sync.auth.model.User;
 import com.sales.sync.auth.repository.UserRepository;
 import org.springframework.stereotype.Component;
+
+import java.util.UUID;
 
 /**
  * Helper that prevents the last active admin from locking themselves
@@ -31,7 +34,7 @@ public class LastAdminGuard {
      * (R4 self-demote: 409 {@code cannot_self_demote_last_admin};
      *  R5 self-deactivate: 409 {@code cannot_deactivate_last_admin}).
      */
-    public void requireNotLastAdmin(java.util.UUID selfUserId) {
+    public void requireNotLastAdmin(UUID selfUserId) {
         long others = users.countActiveByRoleName("admin");
         // countActiveByRoleName counts ALL active admins. If > 1, the
         // caller is not the last one. We subtract 1 if selfUserId is
@@ -46,6 +49,40 @@ public class LastAdminGuard {
         }
     }
 
+    /**
+     * Hard rule: an admin may NEVER deactivate themselves, regardless of
+     * how many other active admins exist. Self-deactivation is always a
+     * foot-gun (the user loses access immediately). When the actor and
+     * the target row are the same user, throw {@link CannotDeactivateLastAdmin}.
+     */
+    public void requireNotSelfDeactivate(UUID actorUserId, UUID targetUserId) {
+        if (actorUserId != null && actorUserId.equals(targetUserId)) {
+            throw new CannotDeactivateLastAdmin(
+                    "Admins cannot deactivate themselves.");
+        }
+    }
+
+    /**
+     * Throws if after the operation fewer than one active admin would
+     * remain. Use this to block deactivating / demoting the last admin
+     * even when the actor is a different admin. {@code changingUserId}
+     * is the user whose status we're about to flip; we count active
+     * admins other than them.
+     */
+    public void requireAdminStillRemains(UUID changingUserId) {
+        long activeAdmins = users.findAll().stream()
+                .filter(u -> u.isActive()
+                        && u.getRoles().stream()
+                                .anyMatch(r -> "admin".equals(r.getName())))
+                .map(User::getId)
+                .filter(id -> !id.equals(changingUserId))
+                .count();
+        if (activeAdmins == 0) {
+            throw new CannotDeactivateLastAdmin(
+                    "Cannot deactivate/demote the last active admin.");
+        }
+    }
+
     /** Thrown by {@link #requireNotLastAdmin}. */
     public static class CannotSelfDemoteLastAdmin extends RuntimeException {
         public CannotSelfDemoteLastAdmin() {
@@ -57,6 +94,9 @@ public class LastAdminGuard {
     public static class CannotDeactivateLastAdmin extends RuntimeException {
         public CannotDeactivateLastAdmin() {
             super("cannot_deactivate_last_admin");
+        }
+        public CannotDeactivateLastAdmin(String message) {
+            super(message != null ? message : "cannot_deactivate_last_admin");
         }
     }
 }

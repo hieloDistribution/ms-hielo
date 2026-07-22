@@ -1,6 +1,7 @@
 package com.sales.sync.auth.admin;
 
 import com.sales.sync.auth.model.Role;
+import com.sales.sync.auth.security.RefreshTokenCodec;
 import com.sales.sync.auth.model.User;
 import com.sales.sync.auth.repository.RoleRepository;
 import com.sales.sync.auth.repository.UserRepository;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -42,6 +44,7 @@ public class AdminService {
     private final InviteTokenProperties inviteProps;
     private final PasswordEncoder passwordEncoder;
     private final LastAdminGuard lastAdminGuard;
+    private final com.sales.sync.auth.internal.OrderAssignmentCascadeClient assignmentCascadeClient;
 
     public AdminService(UserRepository users,
                         RoleRepository roles,
@@ -50,7 +53,8 @@ public class AdminService {
                         InviteTokenCodec tokenCodec,
                         InviteTokenProperties inviteProps,
                         PasswordEncoder passwordEncoder,
-                        LastAdminGuard lastAdminGuard) {
+                        LastAdminGuard lastAdminGuard,
+                        com.sales.sync.auth.internal.OrderAssignmentCascadeClient assignmentCascadeClient) {
         this.users = users;
         this.roles = roles;
         this.auditLogs = auditLogs;
@@ -59,6 +63,7 @@ public class AdminService {
         this.inviteProps = inviteProps;
         this.passwordEncoder = passwordEncoder;
         this.lastAdminGuard = lastAdminGuard;
+        this.assignmentCascadeClient = assignmentCascadeClient;
     }
 
     // ---- list users ----
@@ -84,14 +89,17 @@ public class AdminService {
         validateRoleNames(newRoleNames);
         User target = users.findById(targetUserId)
                 .orElseThrow(() -> new AdminException.UserNotFound(targetUserId));
-        if (actorUserId.equals(targetUserId)) {
-            // Self-demote of admin role: blocked if it's the last admin.
-            boolean targetHasAdmin = target.getRoles().stream()
-                    .anyMatch(r -> "admin".equals(r.getName()));
-            boolean newHasAdmin = newRoleNames.contains("admin");
-            if (targetHasAdmin && !newHasAdmin) {
+        boolean targetHasAdmin = target.getRoles().stream()
+                .anyMatch(r -> "admin".equals(r.getName()));
+        boolean newHasAdmin = newRoleNames.contains("admin");
+        // Hard rule: removing the admin role cannot leave the system
+        // with zero active admins. Apply for self-demote (R4 case) AND
+        // cross-admin demotion (new).
+        if (targetHasAdmin && !newHasAdmin) {
+            if (actorUserId.equals(targetUserId)) {
                 lastAdminGuard.requireNotLastAdmin(actorUserId);
             }
+            lastAdminGuard.requireAdminStillRemains(targetUserId);
         }
         Set<Role> newRoles = newRoleNames.stream()
                 .map(name -> roles.findByName(name)
@@ -116,7 +124,16 @@ public class AdminService {
         User target = users.findById(targetUserId)
                 .orElseThrow(() -> new AdminException.UserNotFound(targetUserId));
         if (actorUserId.equals(targetUserId)) {
-            lastAdminGuard.requireNotLastAdmin(actorUserId);
+            // Hard rule: admins can NEVER deactivate themselves.
+            throw new LastAdminGuard.CannotDeactivateLastAdmin(
+                    "Admins cannot deactivate themselves.");
+        }
+        // Hard rule 2: cannot leave the system with zero active admins.
+        boolean targetIsActiveAdmin = target.isActive()
+                && target.getRoles().stream()
+                        .anyMatch(r -> "admin".equals(r.getName()));
+        if (targetIsActiveAdmin) {
+            lastAdminGuard.requireAdminStillRemains(targetUserId);
         }
         if (!target.isActive()) {
             return target; // idempotent
@@ -138,6 +155,21 @@ public class AdminService {
                 "active=true,locked=false", "active=false,locked=true",
                 null, RequestIdFilter.current()
         )));
+        // Cascade-close any active client assignments the user had as a
+        // preventista. Fail-soft: if order-service is unreachable, the
+        // user is already deactivated locally — we log the failure but
+        // do NOT fail the transaction.
+        try {
+            int closed = assignmentCascadeClient.cascadeCloseForUser(target.getId());
+            if (closed > 0) {
+                log.info("deactivate: cascade-closed {} assignments for userId={}",
+                        closed, target.getId());
+            }
+        } catch (com.sales.sync.auth.internal.OrderServiceUnavailable ex) {
+            log.warn("deactivate: cascade-close FAILED for userId={} (clients "
+                    + "will surface as orphans on next sync): {}",
+                    target.getId(), ex.getMessage());
+        }
         return saved;
     }
 
@@ -177,7 +209,7 @@ public class AdminService {
         row.setId(UUID.fromString(issued.jti()));
         row.setEmail(email);
         row.setRole(roleName);
-        row.setTokenHash(passwordEncoder.encode(issued.token()));
+        row.setTokenHash(RefreshTokenCodec.sha256Hex(issued.token()));
         row.setExpiresAt(issued.expiresAt());
         row.setCreatedBy(actorUserId);
         invites.save(row);
@@ -189,6 +221,39 @@ public class AdminService {
         )));
         return new IssuedInvite(issued.token(), issued.expiresAt(), row.getId());
     }
+
+    // ---- list invites ----
+
+    @Transactional(readOnly = true)
+    public List<AdminInviteSummary> listInvites(boolean pendingOnly) {
+        List<AdminInvite> rows = pendingOnly
+                ? invites.findPending()
+                : invites.findAllOrderedByCreated();
+        List<AdminInviteSummary> out = new ArrayList<>(rows.size());
+        for (AdminInvite a : rows) {
+            out.add(AdminInviteSummary.from(a));
+        }
+        return out;
+    }
+
+    // ---- revoke invite ----
+
+    @Transactional
+    public AdminInviteSummary revokeInvite(UUID actorUserId, UUID inviteId) {
+        AdminInvite invite = invites.findPendingById(inviteId)
+                .orElseThrow(() -> new AdminException.InviteNotPending(
+                        "invite not pending (already used, revoked or expired)"));
+        invite.setRevokedAt(Instant.now());
+        invites.save(invite);
+        auditLogs.save(AdminAuditLog.fromEvent(new AuditEvent(
+                actorUserId, "invite_revoked",
+                null, invite.getEmail(),
+                null, "revoked_at=" + invite.getRevokedAt(),
+                null, RequestIdFilter.current()
+        )));
+        return AdminInviteSummary.from(invite);
+    }
+
 
     // ---- redeem invite (called by AdminInviteRedeemController) ----
 
@@ -204,7 +269,7 @@ public class AdminService {
         if (invite.getUsedAt() != null) {
             throw new AdminException.InvalidInvite("already_used");
         }
-        if (!passwordEncoder.matches(token, invite.getTokenHash())) {
+        if (!RefreshTokenCodec.sha256Hex(token).equals(invite.getTokenHash())) {
             throw new AdminException.InvalidInvite("bad_hash");
         }
         if (invite.getExpiresAt().isBefore(Instant.now())) {

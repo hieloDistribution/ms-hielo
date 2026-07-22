@@ -38,11 +38,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final VendorContext vendorContext;
+    private final AuthContext authContext;
 
     public JwtAuthenticationFilter(JwtService jwtService,
-                                   VendorContext vendorContext) {
+                                   VendorContext vendorContext,
+                                   AuthContext authContext) {
         this.jwtService = jwtService;
         this.vendorContext = vendorContext;
+        this.authContext = authContext;
     }
 
     @Override
@@ -55,6 +58,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = header.substring(PREFIX.length()).trim();
             try {
                 JwtService.ParsedToken parsed = jwtService.parse(token);
+                // Populate the request-scoped AuthContext that controllers
+                // (e.g. UserController.getMe -> AuthContext.requireUserId)
+                // read from. Without this the controller throws
+                // IllegalStateException("No authenticated user in this
+                // request") even though the SecurityContextHolder is set.
+                authContext.set(parsed);
                 List<SimpleGrantedAuthority> authorities = new ArrayList<>();
                 authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
                 for (com.sales.sync.auth.model.User.Role role : parsed.roles()) {
